@@ -95,18 +95,6 @@ app-explorer-sidebar {
   display: block;
 }
 
-.app-section-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--bs-secondary-color);
-}
-
 .app-color-dot {
   width: 0.75rem;
   height: 0.75rem;
@@ -152,6 +140,73 @@ app-explorer-sidebar {
   line-height: 1.15;
   text-wrap: balance;
   overflow-wrap: anywhere;
+}
+
+/* --- Palette accordion --------------------------------------------------- */
+
+.app-palette-accordion {
+  --bs-accordion-border-width: 0;
+  --bs-accordion-bg: transparent;
+  --bs-accordion-btn-bg: transparent;
+  --bs-accordion-active-bg: transparent;
+  --bs-accordion-active-color: var(--bs-body-color);
+  --bs-accordion-btn-color: var(--bs-secondary-color);
+  --bs-accordion-btn-padding-x: 0.25rem;
+  --bs-accordion-btn-padding-y: 0.5rem;
+  --bs-accordion-btn-icon-width: 0.875rem;
+  --bs-accordion-btn-focus-box-shadow: none;
+  --bs-accordion-body-padding-x: 0;
+  --bs-accordion-body-padding-y: 0.25rem;
+  margin-top: 0.75rem;
+}
+
+.app-palette-accordion .accordion-item {
+  border: 0;
+  background-color: transparent;
+}
+
+.app-palette-accordion .accordion-item + .accordion-item {
+  border-top: 1px solid var(--bs-border-color-translucent);
+}
+
+.app-palette-accordion .accordion-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: none;
+}
+
+.app-palette-accordion .accordion-button:not(.collapsed) {
+  box-shadow: none;
+}
+
+/* Bootstrap suppresses the focus ring on accordion buttons; keep an inset ring
+   so keyboard focus stays visible. */
+.app-palette-accordion .accordion-button:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: -2px;
+}
+
+.app-accordion-count {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* --- Relationship type menu --------------------------------------------- */
+
+.app-relationship-menu {
+  min-width: 11rem;
+  font-size: 0.8125rem;
+}
+
+.app-relationship-menu .dropdown-item {
+  display: flex;
+  align-items: center;
 }
 
 .border-dashed {
