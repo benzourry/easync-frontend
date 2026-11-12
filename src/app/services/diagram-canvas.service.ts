@@ -36,6 +36,8 @@ const MIN_SHAPE_WIDTH = 60;
 const MIN_SHAPE_HEIGHT = 40;
 const DEFAULT_VIEW_ID = 'view_default';
 const DASHED_TYPES: RelationshipType[] = ['realization', 'access', 'influence', 'flow'];
+/** Part-whole relationships that ArchiMate also expresses by nesting. */
+const NESTING_IMPLIED_TYPES: RelationshipType[] = ['composition', 'aggregation'];
 const GROUP_SHAPE_ICONS = ['⊞', '📁'];
 const CONNECT_MODE_HINT = 'Connection Mode: Select first shape to connect from.';
 const CONNECT_TARGET_HINT = 'Connection Mode: Select target shape to complete connection.';
@@ -128,6 +130,7 @@ export class DiagramCanvasService {
   private lastClientY = 0;
   private lastMouseX = 0;
   private lastMouseY = 0;
+  private syncingVisibility = false;
 
   private touchDistance = 0;
   private touchCenter: Point2D = { x: 0, y: 0 };
@@ -735,12 +738,76 @@ export class DiagramCanvasService {
       this.updateConnectionGeometry(conn);
     }
 
+    this.syncConnectionVisibility();
+
     this.connections.forEach((conn, index) => {
-      const earlier = this.connections.slice(0, index).map((other) => other.corePoints);
+      if (!conn.line.visible) return;
+
+      const earlier = this.connections
+        .slice(0, index)
+        .filter((other) => other.line.visible)
+        .map((other) => other.corePoints);
       this.applyPath(conn.line, generatePathString(conn.corePoints, earlier));
     });
 
     canvas.requestRenderAll();
+  }
+
+  /**
+   * Keeps every connection in step with what its endpoints are showing: lines
+   * disappear while an endpoint sits inside a collapsed group, and part-whole
+   * lines disappear while the two elements are nested, because ArchiMate draws
+   * containment by nesting them instead of drawing the relationship.
+   */
+  private syncConnectionVisibility(): void {
+    if (this.syncingVisibility) return;
+    this.syncingVisibility = true;
+
+    try {
+      for (const conn of this.connections) {
+        const endpointsVisible = conn.source.visible !== false && conn.target.visible !== false;
+        const impliedByNesting =
+          endpointsVisible &&
+          NESTING_IMPLIED_TYPES.includes(conn.type) &&
+          this.isNestedPair(conn.source, conn.target);
+
+        this.setConnectionVisible(conn, endpointsVisible && !impliedByNesting);
+      }
+    } finally {
+      this.syncingVisibility = false;
+    }
+  }
+
+  private setConnectionVisible(conn: DiagramConnection, visible: boolean): void {
+    if (conn.line.visible !== visible) conn.line.set('visible', visible);
+    if (conn.sourceDec && conn.sourceDec.visible !== visible) conn.sourceDec.set('visible', visible);
+    if (conn.targetDec && conn.targetDec.visible !== visible) conn.targetDec.set('visible', visible);
+
+    // A line that just went away must not stay selected, or the toolbar and
+    // properties panel would keep editing something the user cannot see.
+    const active = this.canvas?.getActiveObject();
+    if (!visible && active === conn.line) {
+      this.canvas?.discardActiveObject();
+    }
+  }
+
+  /** True when one of the two shapes is contained in the other, however that is expressed. */
+  private isNestedPair(a: ArchimateShape, b: ArchimateShape): boolean {
+    if (this.parentChainIncludes(a, b.archimateId)) return true;
+    if (this.parentChainIncludes(b, a.archimateId)) return true;
+    return this.enclosesShape(a, b) || this.enclosesShape(b, a);
+  }
+
+  private enclosesShape(outer: ArchimateShape, inner: ArchimateShape): boolean {
+    const a = outer.getBoundingRect(true, true);
+    const b = inner.getBoundingRect(true, true);
+
+    return (
+      b.left >= a.left &&
+      b.top >= a.top &&
+      b.left + b.width <= a.left + a.width &&
+      b.top + b.height <= a.top + a.height
+    );
   }
 
   private applyPath(line: ConnectionLine, pathString: string): void {
@@ -1133,7 +1200,7 @@ export class DiagramCanvasService {
         );
         if (!exists) {
           this.createConnection(movedShape, candidate, 'composition');
-          this.store.showToast('Nested composition relationship auto-created.');
+          this.store.showToast('Composition created; hidden because nesting already shows it.');
         }
         break;
       }
@@ -2108,9 +2175,6 @@ export class DiagramCanvasService {
     if (!canvas || !shape?.isShape) return;
 
     const children = this.collectLogicalChildren(shape);
-    const relatedConnections = this.connections.filter(
-      (conn) => children.has(conn.source) || children.has(conn.target),
-    );
     const previousPosition = shape.getPointByOrigin('left', 'top');
     const rects = shape.getObjects().filter((child) => child.type === 'rect') as fabric.Rect[];
     const body = rects[rects.length - 1];
@@ -2120,22 +2184,12 @@ export class DiagramCanvasService {
       if (typeof shape.expandedHeight === 'number') body.set({ height: shape.expandedHeight });
       shape.isCollapsed = false;
       for (const child of children) child.set({ visible: true, selectable: true, evented: true });
-      for (const conn of relatedConnections) {
-        conn.line.set('visible', true);
-        conn.sourceDec?.set('visible', true);
-        conn.targetDec?.set('visible', true);
-      }
       this.store.showToast('Group expanded.');
     } else {
       shape.expandedHeight = body.height;
       body.set({ height: 5 });
       shape.isCollapsed = true;
       for (const child of children) child.set({ visible: false, selectable: false, evented: false });
-      for (const conn of relatedConnections) {
-        conn.line.set('visible', false);
-        conn.sourceDec?.set('visible', false);
-        conn.targetDec?.set('visible', false);
-      }
       this.store.showToast('Group collapsed.');
     }
 
