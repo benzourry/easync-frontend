@@ -29,6 +29,7 @@ import { ThemeService } from './theme.service';
 declare const fabric: typeof import('fabric').fabric;
 
 const GRID_SIZE = 15;
+const PASTE_OFFSET = 20;
 const DEFAULT_VIEW_ID = 'view_default';
 const DASHED_TYPES: RelationshipType[] = ['realization', 'access', 'influence', 'flow'];
 const GROUP_SHAPE_ICONS = ['⊞', '📁'];
@@ -59,6 +60,31 @@ interface AddShapeOptions {
   isImport?: boolean;
 }
 
+/** Snapshot of a copied element, independent of the fabric object so paste survives deletion. */
+interface CopiedShape {
+  kind: 'shape';
+  label: string;
+  color: string;
+  icon: string;
+  layer: string;
+  left: number;
+  top: number;
+  width: number | null;
+  height: number | null;
+  elementId: string | null;
+  parentId: string | null;
+}
+
+interface CopiedConnection {
+  kind: 'connection';
+  type: RelationshipType;
+  source: ArchimateShape;
+  target: ArchimateShape;
+  bendpoints: Point2D[];
+}
+
+type CopiedItem = CopiedShape | CopiedConnection;
+
 interface PathInternals {
   path: unknown;
   dirty: boolean;
@@ -85,7 +111,8 @@ export class DiagramCanvasService {
   private activeViewId = DEFAULT_VIEW_ID;
 
   private bendpointHandles: BendpointHandle[] = [];
-  private copiedShape: ArchimateShape | null = null;
+  private clipboard: CopiedItem[] = [];
+  private pasteSeq = 0;
 
   private connectionSource: ArchimateShape | null = null;
   private isPanning = false;
@@ -1247,12 +1274,13 @@ export class DiagramCanvasService {
     const isPaste = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v';
 
     if (isCopy) {
-      const shape = this.canvas?.getActiveObject() as ArchimateShape | undefined;
-      if (shape?.isShape) this.copiedShape = shape;
+      this.copySelection();
       return;
     }
 
-    if (isPaste) this.pasteCopied();
+    if (isPaste) {
+      this.pasteCopied();
+    }
   };
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
@@ -1261,22 +1289,105 @@ export class DiagramCanvasService {
     if (this.canvas) this.canvas.defaultCursor = 'default';
   };
 
-  private pasteCopied(): void {
-    const original = this.copiedShape;
-    if (!original) return;
+  private copySelection(): void {
+    const active = this.canvas?.getActiveObject() as fabric.Object | undefined;
+    if (!active) return;
 
-    this.addShape({
-      label: this.labelOf(original),
-      color: original.originalColor,
-      icon: this.iconOf(original),
-      layer: original.archimateLayer,
-      x: Math.round(((original.left ?? 0) + 20) / GRID_SIZE) * GRID_SIZE,
-      y: Math.round(((original.top ?? 0) + 20) / GRID_SIZE) * GRID_SIZE,
-      width: original.width,
-      height: original.height,
-      forceId: original.archimateId,
-    });
-    this.refreshTree();
+    const objects =
+      active.type === 'activeSelection'
+        ? ((active as fabric.ActiveSelection).getObjects() as fabric.Object[])
+        : [active];
+
+    const items: CopiedItem[] = [];
+    for (const object of objects) {
+      const shape = object as ArchimateShape;
+      const line = object as ConnectionLine;
+      if (shape.isShape) {
+        items.push({
+          kind: 'shape',
+          label: this.labelOf(shape),
+          color: shape.originalColor,
+          icon: this.iconOf(shape),
+          layer: shape.archimateLayer,
+          left: shape.left ?? 0,
+          top: shape.top ?? 0,
+          width: shape.width ?? null,
+          height: shape.height ?? null,
+          elementId: shape.archimateId || null,
+          parentId: shape.parentId ?? null,
+        });
+        continue;
+      }
+
+      const connection = this.connections.find((candidate) => candidate.line === line);
+      if (!connection) continue;
+      items.push({
+        kind: 'connection',
+        type: connection.type,
+        source: connection.source,
+        target: connection.target,
+        bendpoints: connection.bendpoints.map((point) => ({ ...point })),
+      });
+    }
+
+    if (items.length === 0) return;
+
+    this.clipboard = items;
+    this.pasteSeq = 0;
+    this.store.showToast(
+      items.length === 1 ? 'Element copied to clipboard.' : `${items.length} elements copied to clipboard.`,
+    );
+  }
+
+  private pasteCopied(): void {
+    const canvas = this.canvas;
+    if (!canvas || this.clipboard.length === 0) return;
+
+    this.pasteSeq += 1;
+    const offset = this.pasteSeq * PASTE_OFFSET;
+    const created: fabric.Object[] = [];
+
+    for (const item of this.clipboard) {
+      if (item.kind === 'shape') {
+        const shape = this.addShape({
+          label: item.label,
+          color: item.color,
+          icon: item.icon,
+          layer: item.layer,
+          x: item.left + offset,
+          y: item.top + offset,
+          width: item.width,
+          height: item.height,
+          forceId: item.elementId,
+          parentId: item.parentId,
+        });
+        if (shape) created.push(shape);
+        continue;
+      }
+
+      // A copied relationship can only be recreated while both endpoints are on the current view.
+      const onCanvas = (shape: ArchimateShape): boolean => canvas.getObjects().includes(shape);
+      if (!onCanvas(item.source) || !onCanvas(item.target)) continue;
+
+      const connection = this.createConnection(
+        item.source,
+        item.target,
+        item.type,
+        item.bendpoints.map((point) => ({ x: point.x + offset, y: point.y + offset })),
+      );
+      if (connection) created.push(connection.line);
+    }
+
+    if (created.length === 0) {
+      this.store.showToast('Nothing to paste: the copied element is not part of this view.', true);
+      return;
+    }
+
+    canvas.setActiveObject(
+      created.length === 1 ? created[0] : new fabric.ActiveSelection(created, { canvas }),
+    );
+    this.syncSelection();
+    this.store.showToast(created.length === 1 ? 'Element pasted.' : `${created.length} elements pasted.`);
   }
 
   private bindTouch(): void {
