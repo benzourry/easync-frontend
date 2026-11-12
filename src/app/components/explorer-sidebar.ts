@@ -31,7 +31,7 @@ type RepositoryItem = RepositoryLayer['items'][number];
             <button type="button" ngbNavLink class="w-100 app-tab">Explorer</button>
             <ng-template ngbNavContent>
               <div
-                class="h-100 overflow-auto app-scroll p-2"
+                class="h-100 overflow-auto app-scroll app-panel-body"
                 cdkDropList
                 cdkDropListSortingDisabled
                 cdkDropListAutoScrollDisabled
@@ -41,7 +41,7 @@ type RepositoryItem = RepositoryLayer['items'][number];
                   <div class="list-group list-group-flush ps-2">
                     @for (view of store.views(); track view.id) {
                       <button type="button" [class]="rowClass(view.isActive)" (click)="diagram.selectView(view.id)">
-                        <span class="flex-shrink-0" aria-hidden="true">🖼️</span>
+                        <svg class="app-icon" aria-hidden="true"><use href="icons.svg#window-stack"></use></svg>
                         <span class="text-truncate">{{ view.name }}</span>
                       </button>
                     }
@@ -129,7 +129,7 @@ type RepositoryItem = RepositoryLayer['items'][number];
           <li [ngbNavItem]="'properties'" domId="properties" class="flex-fill">
             <button type="button" ngbNavLink class="w-100 app-tab">Properties</button>
             <ng-template ngbNavContent>
-              <div class="h-100 overflow-auto app-scroll p-3">
+              <div class="h-100 overflow-auto app-scroll app-panel-body">
                 <app-properties-panel />
               </div>
             </ng-template>

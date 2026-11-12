@@ -23,9 +23,9 @@ type PaletteTab = 'elements' | 'ai';
       aria-label="Elements palette"
     >
       <div
-        class="d-flex align-items-center justify-content-between gap-2 px-3 py-2 border-bottom bg-body-tertiary flex-shrink-0"
+        class="d-flex align-items-center justify-content-between gap-2 app-panel-header border-bottom bg-body-tertiary flex-shrink-0"
       >
-        <h2 class="h6 mb-0">Elements Palette</h2>
+        <h2 class="h6 mb-0">{{ panelTitle() }}</h2>
         <button
           type="button"
           class="btn-close d-md-none flex-shrink-0"
@@ -47,7 +47,7 @@ type PaletteTab = 'elements' | 'ai';
             <button type="button" ngbNavLink class="w-100 app-tab">Elements</button>
             <ng-template ngbNavContent>
               <div
-                class="h-100 overflow-auto app-scroll px-3 py-3"
+                class="h-100 overflow-auto app-scroll app-panel-body"
                 cdkDropList
                 cdkDropListSortingDisabled
                 cdkDropListAutoScrollDisabled
@@ -66,21 +66,7 @@ type PaletteTab = 'elements' | 'ai';
                     title="Toggle connection mode"
                     (click)="diagram.toggleConnectionMode()"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M10 13a5 5 0 0 0 7.1 0l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7" />
-                      <path d="M14 11a5 5 0 0 0-7.1 0l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7" />
-                    </svg>
+                    <svg class="app-icon" aria-hidden="true"><use href="icons.svg#link-45deg"></use></svg>
                     <span>{{ store.connectionMode() ? 'Connecting' : 'Connect' }}</span>
                   </button>
                   <button
@@ -104,7 +90,9 @@ type PaletteTab = 'elements' | 'ai';
                       >
                         <span class="flex-grow-1 text-start">{{ option.label }}</span>
                         @if (option.value === store.connectionType()) {
-                          <span class="ms-2" aria-hidden="true">✓</span>
+                          <svg class="app-icon ms-2" aria-hidden="true">
+                            <use href="icons.svg#check2"></use>
+                          </svg>
                         }
                       </button>
                     }
@@ -169,7 +157,7 @@ type PaletteTab = 'elements' | 'ai';
           <li [ngbNavItem]="'ai'" domId="ai" class="flex-fill">
             <button type="button" ngbNavLink class="w-100 app-tab">AI Assistant</button>
             <ng-template ngbNavContent>
-              <div class="h-100 overflow-auto app-scroll px-3 py-3">
+              <div class="h-100 overflow-auto app-scroll app-panel-body">
                 <label class="form-label small mb-1" for="ai-prompt">Describe your diagram</label>
                 <textarea
                   id="ai-prompt"
@@ -274,6 +262,9 @@ type PaletteTab = 'elements' | 'ai';
                         <li>{{ line }}</li>
                       }
                     </ul>
+                    @for (notice of ai.notices(); track $index) {
+                      <p class="small text-warning-emphasis mb-2">{{ notice }}</p>
+                    }
                     <div class="d-flex gap-2">
                       <button
                         type="button"
@@ -313,6 +304,9 @@ export class PaletteSidebar {
   protected readonly prompt = signal('');
   protected readonly settingsOpen = signal(false);
   protected readonly tab = signal<PaletteTab>('elements');
+  protected readonly panelTitle = computed(() =>
+    this.tab() === 'ai' ? 'AI Assistant' : 'Elements Palette',
+  );
 
   protected readonly typeLabel = computed(
     () =>

@@ -7,8 +7,6 @@ import { DiagramStore } from '../services/diagram-store';
 @Component({
   selector: 'app-properties-panel',
   template: `
-    <h2 class="h6 mb-3">Properties</h2>
-
     @if (selection().kind === 'none') {
       <p class="small text-body-secondary mb-0">Select an element to view properties</p>
     } @else {

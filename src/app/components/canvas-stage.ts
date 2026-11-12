@@ -48,21 +48,21 @@ import { clientPointFromEvent } from '../utils/drag-point';
         <div class="btn-group btn-group-sm" role="group" aria-label="Actions for the selected object">
           <button
             type="button"
-            class="btn btn-light"
+            class="btn btn-light d-flex align-items-center justify-content-center"
             title="Bring to Front"
             aria-label="Bring to front"
             (click)="diagram.bringToFront()"
           >
-            ↑
+            <svg class="app-icon" aria-hidden="true"><use href="icons.svg#front"></use></svg>
           </button>
           <button
             type="button"
-            class="btn btn-light"
+            class="btn btn-light d-flex align-items-center justify-content-center"
             title="Send to Back"
             aria-label="Send to back"
             (click)="diagram.sendToBack()"
           >
-            ↓
+            <svg class="app-icon" aria-hidden="true"><use href="icons.svg#back"></use></svg>
           </button>
         </div>
 
@@ -70,53 +70,24 @@ import { clientPointFromEvent } from '../utils/drag-point';
 
         <button
           type="button"
-          class="btn btn-sm btn-light text-primary"
+          class="btn btn-sm btn-light text-primary d-flex align-items-center justify-content-center"
           title="Edit Properties"
           aria-label="Edit properties"
           (click)="diagram.editActiveObject()"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-          </svg>
+          <svg class="app-icon" aria-hidden="true"><use href="icons.svg#pencil"></use></svg>
         </button>
 
         <div class="vr opacity-25"></div>
 
         <button
           type="button"
-          class="btn btn-sm btn-light text-danger"
+          class="btn btn-sm btn-light text-danger d-flex align-items-center justify-content-center"
           title="Delete"
           aria-label="Delete selected object"
           (click)="diagram.deleteActive()"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path
-              d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-            ></path>
-          </svg>
+          <svg class="app-icon" aria-hidden="true"><use href="icons.svg#trash3"></use></svg>
         </button>
       </div>
     </main>

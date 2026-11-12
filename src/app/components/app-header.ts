@@ -13,26 +13,11 @@ import { DiagramStore } from '../services/diagram-store';
       <div class="d-flex align-items-center gap-2 me-auto">
         <button
           type="button"
-          class="btn btn-sm btn-light d-md-none"
+          class="btn btn-sm btn-light d-md-none d-flex align-items-center justify-content-center"
           aria-label="Toggle elements palette"
           (click)="store.togglePalette()"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
+          <svg class="app-icon" aria-hidden="true"><use href="icons.svg#list"></use></svg>
         </button>
 
         <div class="app-logo bg-primary text-white rounded fw-bold" aria-hidden="true">E</div>
@@ -43,47 +28,24 @@ import { DiagramStore } from '../services/diagram-store';
       <div class="d-flex align-items-center gap-2">
         <button
           type="button"
-          class="btn btn-sm btn-light"
+          class="btn btn-sm btn-light d-flex align-items-center justify-content-center"
           [attr.aria-label]="store.isDark() ? 'Switch to light mode' : 'Switch to dark mode'"
           [ngbTooltip]="store.isDark() ? 'Switch to light mode' : 'Switch to dark mode'"
           (click)="store.toggleTheme()"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          <svg class="app-icon" aria-hidden="true">
+            <use [attr.href]="store.isDark() ? 'icons.svg#sun' : 'icons.svg#moon-stars'"></use>
           </svg>
         </button>
 
         <button
           type="button"
-          class="btn btn-sm btn-light d-md-none"
+          class="btn btn-sm btn-light d-md-none d-flex align-items-center justify-content-center"
           aria-label="Toggle explorer panel"
           (click)="store.toggleExplorer()"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <line x1="9" y1="3" x2="9" y2="21"></line>
+          <svg class="app-icon" aria-hidden="true">
+            <use href="icons.svg#layout-sidebar-inset-reverse"></use>
           </svg>
         </button>
 
@@ -96,20 +58,7 @@ import { DiagramStore } from '../services/diagram-store';
           ngbTooltip="Open .archimate file"
           (click)="upload.click()"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-          </svg>
+          <svg class="app-icon" aria-hidden="true"><use href="icons.svg#folder2-open"></use></svg>
           <span class="d-none d-sm-inline">Open</span>
         </button>
         <input
@@ -132,20 +81,7 @@ import { DiagramStore } from '../services/diagram-store';
           ngbTooltip="Export to PNG"
           (click)="diagram.exportImage()"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-          </svg>
+          <svg class="app-icon" aria-hidden="true"><use href="icons.svg#download"></use></svg>
           <span class="d-none d-sm-inline">Export</span>
         </button>
       </div>

@@ -14,6 +14,12 @@ const AUTO_LAYOUT_CELL_WIDTH = 180;
 const AUTO_LAYOUT_CELL_HEIGHT = 110;
 const AUTO_LAYOUT_ORIGIN = 60;
 const LAYOUT_GRID = 15;
+const DEFAULT_SHAPE_WIDTH = 140;
+const DEFAULT_SHAPE_HEIGHT = 70;
+
+/** Requests that genuinely ask for an empty canvas. Anything else must stay additive. */
+const CLEAR_INTENT =
+  /\b(clear|wipe|reset|start (over|fresh|again)|from scratch|new diagram|new view|empty (the )?(canvas|diagram|view)|replace (the |this )?(whole |entire )?(diagram|canvas|view))\b/i;
 
 /** Element names the assistant is allowed to use, taken straight from the palette. */
 const ELEMENT_CATALOG = PALETTE_CATEGORIES.flatMap((category) =>
@@ -46,7 +52,9 @@ Rules:
 - "parent" refers to a Grouping element that visually contains the element; omit it for top-level elements.
 - Composition and aggregation lines between a container and its children are hidden automatically, so do not add them for nested elements.
 - Only emit the operations the request needs. Return {"summary":"No changes","ops":[]} when nothing should change.
-- When the user asks for a new or replacement diagram, list the addShape operations first and start with {"op":"clearView"}.
+- The canvas usually already has content. Treat every request as an incremental edit: add only what is missing, and reuse the ids shown in the diagram description for existing elements instead of recreating them.
+- Use {"op":"clearView"} only when the user explicitly asks to clear, wipe, reset or replace the whole diagram. Never clear the view just because the request introduces new layers or sections.
+- Never repeat an element that already exists with the same meaning; rename or move it instead.
 - Keep names short and in the language of the request.`;
 
 /** Applies an assistant plan to the canvas. */
@@ -60,12 +68,14 @@ export class AiDiagramService {
   private readonly errorSignal = signal<string | null>(null);
   private readonly planSignal = signal<AiPlan | null>(null);
   private readonly previewSignal = signal<string[]>([]);
+  private readonly noticeSignal = signal<string[]>([]);
 
   readonly settings = this.settingsSignal.asReadonly();
   readonly busy = this.busySignal.asReadonly();
   readonly error = this.errorSignal.asReadonly();
   readonly plan = this.planSignal.asReadonly();
   readonly preview = this.previewSignal.asReadonly();
+  readonly notices = this.noticeSignal.asReadonly();
   readonly hasPreview = computed(() => this.planSignal() !== null);
   readonly isConfigured = computed(() => {
     const { baseUrl, model } = this.settingsSignal();
@@ -90,10 +100,9 @@ export class AiDiagramService {
     this.busySignal.set(true);
     this.errorSignal.set(null);
     this.discardPlan();
-
     try {
       const reply = await this.requestPlan(request);
-      const plan = parsePlan(reply);
+      const plan = this.protectExistingDiagram(parsePlan(reply), request);
       this.planSignal.set(plan);
       this.previewSignal.set(describePlan(plan.ops, this.labelsFor(plan.ops)));
     } catch (error) {
@@ -113,10 +122,13 @@ export class AiDiagramService {
     const resolve = (key: string | null | undefined): string | null =>
       key ? (ids.get(key) ?? key) : null;
 
-    const origin =
-      plan.ops.some((op) => op.op === 'clearView')
-        ? { x: AUTO_LAYOUT_ORIGIN, y: AUTO_LAYOUT_ORIGIN }
-        : this.autoLayoutOrigin(this.canvas.describeShapes());
+    const shapes = this.canvas.describeShapes();
+    const origin = plan.ops.some((op) => op.op === 'clearView')
+      ? { x: AUTO_LAYOUT_ORIGIN, y: AUTO_LAYOUT_ORIGIN }
+      : this.autoLayoutOrigin(shapes);
+    const shift = plan.ops.some((op) => op.op === 'clearView')
+      ? 0
+      : this.overlapShift(shapes, plan.ops);
     let slot = 0;
     let applied = 0;
     let failed = 0;
@@ -134,7 +146,7 @@ export class AiDiagramService {
           const style = elementStyleFor(op.elementType, op.layer);
           const position =
             op.x !== undefined && op.y !== undefined
-              ? { x: op.x, y: op.y }
+              ? { x: op.x, y: op.y + shift }
               : this.autoLayoutSlot(origin, slot++);
           const id = this.canvas.createShape({
             label: op.label,
@@ -206,18 +218,22 @@ export class AiDiagramService {
     }
 
     this.canvas.commitProgrammaticChanges();
+    const notices = this.noticeSignal();
     this.discardPlan();
 
     this.store.showToast(
       failed
         ? `Applied ${applied} change${applied === 1 ? '' : 's'}; ${failed} could not be applied.`
-        : `Applied ${applied} change${applied === 1 ? '' : 's'} to the diagram.`,
+        : notices.length
+          ? `Applied ${applied} change${applied === 1 ? '' : 's'}; existing content was kept.`
+          : `Applied ${applied} change${applied === 1 ? '' : 's'} to the diagram.`,
     );
   }
 
   discardPlan(): void {
     this.planSignal.set(null);
     this.previewSignal.set([]);
+    this.noticeSignal.set([]);
   }
 
   clearError(): void {
@@ -233,15 +249,64 @@ export class AiDiagramService {
     return labels;
   }
 
+  /**
+   * Follow-up prompts must not wipe the diagram. The model occasionally emits `clearView`
+   * for requests like "add the technology layer", so the op is dropped unless the user
+   * explicitly asked for an empty canvas.
+   */
+  private protectExistingDiagram(plan: AiPlan, request: string): AiPlan {
+    const wantsClear = plan.ops.some((op) => op.op === 'clearView');
+    if (!wantsClear) return plan;
+
+    if (CLEAR_INTENT.test(request) || !this.canvas.describeShapes().length) return plan;
+
+    const ops = plan.ops.filter((op) => op.op !== 'clearView');
+    this.noticeSignal.set([
+      'Kept the existing diagram. The assistant wanted to clear the canvas, but the request did not ask for that.',
+    ]);
+    return ops.length ? { ...plan, ops } : { summary: plan.summary, ops: [] };
+  }
+
   private autoLayoutOrigin(shapes: DiagramShapeInfo[]): { x: number; y: number } {
     if (!shapes.length) return { x: AUTO_LAYOUT_ORIGIN, y: AUTO_LAYOUT_ORIGIN };
 
-    const right = Math.max(...shapes.map((shape) => shape.left + shape.width));
-    const top = Math.min(...shapes.map((shape) => shape.top));
+    // Stack new content below what is already on the canvas, keeping the columns aligned.
+    const left = Math.min(...shapes.map((shape) => shape.left));
+    const bottom = Math.max(...shapes.map((shape) => shape.top + shape.height));
     return {
-      x: Math.ceil((right + AUTO_LAYOUT_ORIGIN) / LAYOUT_GRID) * LAYOUT_GRID,
-      y: Math.floor(top / LAYOUT_GRID) * LAYOUT_GRID,
+      x: Math.floor(left / LAYOUT_GRID) * LAYOUT_GRID,
+      y: Math.ceil((bottom + AUTO_LAYOUT_ORIGIN) / LAYOUT_GRID) * LAYOUT_GRID,
     };
+  }
+
+  /** Vertical offset that keeps model-supplied coordinates from covering existing elements. */
+  private overlapShift(shapes: DiagramShapeInfo[], ops: AiOp[]): number {
+    if (!shapes.length) return 0;
+
+    const planned = ops.filter(
+      (op): op is Extract<AiOp, { op: 'addShape' }> =>
+        op.op === 'addShape' && op.x !== undefined && op.y !== undefined,
+    );
+    if (!planned.length) return 0;
+
+    const collides = planned.some((op) => {
+      const left = op.x ?? 0;
+      const top = op.y ?? 0;
+      const right = left + (op.width ?? DEFAULT_SHAPE_WIDTH);
+      const bottom = top + (op.height ?? DEFAULT_SHAPE_HEIGHT);
+      return shapes.some(
+        (shape) =>
+          left < shape.left + shape.width &&
+          right > shape.left &&
+          top < shape.top + shape.height &&
+          bottom > shape.top,
+      );
+    });
+    if (!collides) return 0;
+
+    const existingBottom = Math.max(...shapes.map((shape) => shape.top + shape.height));
+    const plannedTop = Math.min(...planned.map((op) => op.y ?? 0));
+    return Math.ceil((existingBottom + AUTO_LAYOUT_ORIGIN - plannedTop) / LAYOUT_GRID) * LAYOUT_GRID;
   }
 
   private autoLayoutSlot(origin: { x: number; y: number }, index: number): { x: number; y: number } {
