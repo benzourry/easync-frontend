@@ -27,6 +27,11 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "fabric.min.js",
+                "input": "node_modules/fabric/dist",
+                "output": "/"
               }
             ],
             "styles": [
