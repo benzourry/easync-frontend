@@ -62,6 +62,39 @@ export interface ToastMessage {
   isError: boolean;
 }
 
+/** Element description accepted by `DiagramCanvasService.createShape`. */
+export interface ShapeSpec {
+  label: string;
+  layer?: string;
+  color?: string;
+  icon?: string;
+  x?: number;
+  y?: number;
+  width?: number | null;
+  height?: number | null;
+  parentId?: string | null;
+}
+
+/** Flat snapshot of an element, safe to hand to non-UI consumers such as the assistant. */
+export interface DiagramShapeInfo {
+  id: string;
+  label: string;
+  layer: string;
+  icon: string;
+  parentId: string | null;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** Flat snapshot of a relationship. */
+export interface DiagramConnectionInfo {
+  sourceId: string;
+  targetId: string;
+  type: RelationshipType;
+}
+
 /** A shape resolved from an imported `.archimate` exchange file. */
 export interface ParsedShape {
   diagId: string;

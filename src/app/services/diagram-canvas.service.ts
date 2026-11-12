@@ -2,11 +2,14 @@ import { Service, effect, inject } from '@angular/core';
 import { getArchimateTypeInfo } from '../models/archimate.models';
 import type { GlobalElement, PaletteItem, Point2D, RelationshipType } from '../models/archimate.models';
 import type {
+  DiagramConnectionInfo,
+  DiagramShapeInfo,
   LayerGroup,
   ParsedView,
   RelationshipSummary,
   RepositoryLayer,
   SelectionProperties,
+  ShapeSpec,
   ShapeSummary,
   ViewSummary,
 } from '../models/diagram.models';
@@ -353,6 +356,124 @@ export class DiagramCanvasService {
     });
 
     if (window.innerWidth < 768) this.store.closeSidebars();
+  }
+
+  // --- Programmatic editing (AI assistant) ---------------------------------
+
+  /** Live elements with their ids, used to describe the diagram to the assistant. */
+  describeShapes(): DiagramShapeInfo[] {
+    return this.allShapes().map((shape) => ({
+      id: shape.archimateId,
+      label: this.labelOf(shape),
+      layer: shape.archimateLayer || 'Other',
+      icon: this.iconOf(shape),
+      parentId: shape.parentId ?? null,
+      left: Math.round(shape.left ?? 0),
+      top: Math.round(shape.top ?? 0),
+      width: Math.round(shape.getScaledWidth()),
+      height: Math.round(shape.getScaledHeight()),
+    }));
+  }
+
+  describeConnections(): DiagramConnectionInfo[] {
+    return this.connections.map((conn) => ({
+      sourceId: conn.source.archimateId,
+      targetId: conn.target.archimateId,
+      type: conn.type,
+    }));
+  }
+
+  findShapeById(id: string): ArchimateShape | undefined {
+    return this.findShape((shape) => shape.archimateId === id);
+  }
+
+  createShape(spec: ShapeSpec): string | null {
+    const shape = this.addShape({
+      label: spec.label,
+      color: spec.color ?? '#ffffff',
+      icon: spec.icon ?? '▭',
+      layer: spec.layer ?? 'Generic',
+      x: spec.x ?? 60,
+      y: spec.y ?? 60,
+      width: spec.width ?? null,
+      height: spec.height ?? null,
+      parentId: spec.parentId ?? null,
+      isImport: true,
+    });
+    return shape?.archimateId ?? null;
+  }
+
+  connectByIds(sourceId: string, targetId: string, type: RelationshipType): boolean {
+    const source = this.findShapeById(sourceId);
+    const target = this.findShapeById(targetId);
+    if (!source || !target || source === target) return false;
+    return this.createConnection(source, target, type, []) !== null;
+  }
+
+  disconnectByIds(sourceId: string, targetId: string, type?: RelationshipType): boolean {
+    const matches = this.connections.filter(
+      (conn) =>
+        conn.source.archimateId === sourceId &&
+        conn.target.archimateId === targetId &&
+        (!type || conn.type === type),
+    );
+    for (const conn of matches) this.removeConnection(conn.line);
+    return matches.length > 0;
+  }
+
+  removeShapeById(id: string): boolean {
+    const shape = this.findShapeById(id);
+    if (!shape) return false;
+    this.removeShape(shape);
+    return true;
+  }
+
+  renameShapeById(id: string, label: string): boolean {
+    const shape = this.findShapeById(id);
+    if (!shape) return false;
+    const text = label.trim() || 'Unnamed';
+    const textbox = shape.getObjects().find((child) => child.type === 'textbox') as
+      | fabric.Textbox
+      | undefined;
+    textbox?.set('text', text);
+    this.syncGlobalElementName(shape.archimateId, text);
+    shape.setCoords();
+    return true;
+  }
+
+  moveShapeById(id: string, x: number, y: number): boolean {
+    const shape = this.findShapeById(id);
+    if (!shape) return false;
+    shape.set({ left: x, top: y });
+    shape.lastLeft = x;
+    shape.lastTop = y;
+    shape.setCoords();
+    return true;
+  }
+
+  /** Re-points an element's ArchiMate parent, which hides part-whole nesting lines. */
+  setShapeParentById(id: string, parentId: string | null): boolean {
+    const shape = this.findShapeById(id);
+    if (!shape || id === parentId || (parentId && !this.findShapeById(parentId))) return false;
+    shape.parentId = parentId;
+    return true;
+  }
+
+  /** Repaints after a batch of programmatic edits. */
+  commitProgrammaticChanges(): void {
+    this.updateAllConnections();
+    this.canvas?.requestRenderAll();
+    this.refreshTree();
+    this.refreshProperties();
+  }
+
+  private allShapes(): ArchimateShape[] {
+    const canvas = this.canvas;
+    if (!canvas) return [];
+    return canvas.getObjects().filter((obj): obj is ArchimateShape => {
+      const shape = obj as ArchimateShape;
+      return shape.isShape === true;
+    });
   }
 
   // --- Shapes --------------------------------------------------------------
