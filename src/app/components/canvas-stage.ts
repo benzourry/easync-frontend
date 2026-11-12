@@ -21,6 +21,7 @@ import { clientPointFromEvent } from '../utils/drag-point';
       >
         <span><kbd>Shift</kbd> + Drag to connect</span>
         <span><kbd>Space</kbd> + Drag to pan</span>
+        <span class="d-none d-lg-inline"><kbd>Ctrl</kbd> + <kbd>Z</kbd> to undo</span>
       </div>
 
       <canvas #canvas class="d-block" aria-label="ArchiMate diagram canvas"></canvas>

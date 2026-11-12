@@ -11,6 +11,9 @@ import type {
   SelectionProperties,
   ShapeSpec,
   ShapeSummary,
+  SnapshotSelection,
+  SnapshotShape,
+  ViewSnapshot,
   ViewSummary,
 } from '../models/diagram.models';
 import type {
@@ -20,6 +23,7 @@ import type {
   DiagramConnection,
   StoredView,
 } from '../models/fabric.types';
+import { HistoryStack } from '../utils/history-stack';
 import { ArchimateImportService } from './archimate-import.service';
 import {
   generatePathString,
@@ -38,6 +42,8 @@ const GROUP_TAB_HEIGHT = 24;
 const MIN_SHAPE_WIDTH = 60;
 const MIN_SHAPE_HEIGHT = 40;
 const DEFAULT_VIEW_ID = 'view_default';
+/** How many undo steps are kept per view. */
+const HISTORY_LIMIT = 60;
 const DASHED_TYPES: RelationshipType[] = ['realization', 'access', 'influence', 'flow'];
 /** Part-whole relationships that ArchiMate also expresses by nesting. */
 const NESTING_IMPLIED_TYPES: RelationshipType[] = ['composition', 'aggregation'];
@@ -123,6 +129,10 @@ export class DiagramCanvasService {
   private clipboard: CopiedItem[] = [];
   private pasteSeq = 0;
 
+  /** Undo timelines, one per view, so switching views never mixes histories. */
+  private readonly history = new Map<string, HistoryStack<ViewSnapshot>>();
+  private restoringHistory = false;
+
   private connectionSource: ArchimateShape | null = null;
   private isPanning = false;
   private isSpaceDown = false;
@@ -176,6 +186,7 @@ export class DiagramCanvasService {
 
     this.refreshTree();
     this.refreshProperties();
+    this.ensureHistory();
     this.canvas.requestRenderAll();
   }
 
@@ -194,6 +205,9 @@ export class DiagramCanvasService {
     }
     this.canvas = null;
     this.host = null;
+    this.history.clear();
+    this.store.canUndo.set(false);
+    this.store.canRedo.set(false);
   }
 
   private resizeCanvas(): void {
@@ -332,6 +346,7 @@ export class DiagramCanvasService {
       y: Math.round((centerY + (Math.random() * 40 - 20)) / GRID_SIZE) * GRID_SIZE,
     });
 
+    this.commitHistory();
     if (window.innerWidth < 768) this.store.closeSidebars();
   }
 
@@ -355,6 +370,7 @@ export class DiagramCanvasService {
       forceId: payload.archimateId ?? null,
     });
 
+    this.commitHistory();
     if (window.innerWidth < 768) this.store.closeSidebars();
   }
 
@@ -465,6 +481,7 @@ export class DiagramCanvasService {
     this.canvas?.requestRenderAll();
     this.refreshTree();
     this.refreshProperties();
+    this.commitHistory();
   }
 
   private allShapes(): ArchimateShape[] {
@@ -1037,6 +1054,7 @@ export class DiagramCanvasService {
     this.updateAllConnections();
     this.showBendpoints(conn);
     canvas.requestRenderAll();
+    this.commitHistory();
   }
 
   clearBendpointsAction(): void {
@@ -1054,6 +1072,7 @@ export class DiagramCanvasService {
     this.updateAllConnections();
     this.showBendpoints(conn);
     canvas.requestRenderAll();
+    this.commitHistory();
   }
 
   private deleteBendpoint(handle: BendpointHandle): void {
@@ -1067,6 +1086,7 @@ export class DiagramCanvasService {
     this.showBendpoints(conn);
     this.refreshProperties();
     canvas.requestRenderAll();
+    this.commitHistory();
   }
 
   // --- Canvas events -------------------------------------------------------
@@ -1194,6 +1214,7 @@ export class DiagramCanvasService {
     if (source && target?.isShape && target !== source) {
       this.createConnection(source, target);
       this.refreshTree();
+      this.commitHistory();
     }
     canvas.requestRenderAll();
   }
@@ -1287,6 +1308,7 @@ export class DiagramCanvasService {
     }
     this.updateAllConnections();
     this.syncSelection();
+    this.commitHistory();
   }
 
   private handleAutoGroup(movedShape: ArchimateShape): void {
@@ -1496,6 +1518,7 @@ export class DiagramCanvasService {
     this.updateAllConnections();
     this.showBendpoints(conn);
     this.canvas?.requestRenderAll();
+    this.commitHistory();
   }
 
   private distanceToSegment(point: Point2D, a: Point2D, b: Point2D): number {
@@ -1532,6 +1555,22 @@ export class DiagramCanvasService {
     const active = document.activeElement as HTMLElement | null;
     const tag = active?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable) return;
+
+    // Text fields keep the browser's native undo, so these come after the guard.
+    if (event.ctrlKey || event.metaKey) {
+      const key = event.key.toLowerCase();
+      if (key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) this.redo();
+        else this.undo();
+        return;
+      }
+      if (key === 'y') {
+        event.preventDefault();
+        this.redo();
+        return;
+      }
+    }
 
     if (event.code === 'Space') {
       this.isSpaceDown = true;
@@ -1663,6 +1702,7 @@ export class DiagramCanvasService {
       created.length === 1 ? created[0] : new fabric.ActiveSelection(created, { canvas }),
     );
     this.syncSelection();
+    this.commitHistory();
     this.store.showToast(created.length === 1 ? 'Element pasted.' : `${created.length} elements pasted.`);
   }
 
@@ -2040,6 +2080,7 @@ export class DiagramCanvasService {
     this.canvas?.requestRenderAll();
     this.refreshTree();
     this.refreshProperties();
+    this.commitHistory();
   }
 
   closeLabelDialog(): void {
@@ -2076,17 +2117,20 @@ export class DiagramCanvasService {
         this.syncGlobalElementName(shape.archimateId, label);
         canvas.requestRenderAll();
         this.refreshTree();
+        this.commitHistory();
         return;
       }
       case 'parent': {
         if (!shape.isShape) return;
         shape.parentId = value || null;
         this.refreshTree();
+        this.commitHistory();
         return;
       }
       case 'link': {
         if (!shape.isShape) return;
         shape.linkedView = value;
+        this.commitHistory();
         return;
       }
       case 'color': {
@@ -2097,6 +2141,7 @@ export class DiagramCanvasService {
         if (rect) rect.set('fill', value);
         canvas.requestRenderAll();
         this.refreshProperties();
+        this.commitHistory();
         return;
       }
       case 'type': {
@@ -2107,6 +2152,7 @@ export class DiagramCanvasService {
       case 'doc': {
         if (connection.isConnection) connection.archimateDoc = value;
         else if (shape.isShape) shape.archimateDoc = value;
+        this.commitHistory();
         return;
       }
     }
@@ -2123,6 +2169,7 @@ export class DiagramCanvasService {
     if (rect) rect.set('fill', active.originalColor);
     canvas.requestRenderAll();
     this.refreshProperties();
+    this.commitHistory();
   }
 
   private changeConnectionType(connection: ConnectionLine, type: RelationshipType): void {
@@ -2151,6 +2198,7 @@ export class DiagramCanvasService {
     this.refreshProperties();
     this.refreshTree();
     canvas.requestRenderAll();
+    this.commitHistory();
   }
 
   deleteActive(): void {
@@ -2187,6 +2235,7 @@ export class DiagramCanvasService {
     canvas.requestRenderAll();
     this.clearBendpoints();
     this.syncSelection();
+    this.commitHistory();
   }
 
   private removeConnection(line: ConnectionLine): void {
@@ -2226,6 +2275,7 @@ export class DiagramCanvasService {
     active.bringToFront();
     for (const handle of this.bendpointHandles) handle.bringToFront();
     this.canvas?.requestRenderAll();
+    this.commitHistory();
   }
 
   sendToBack(): void {
@@ -2233,6 +2283,7 @@ export class DiagramCanvasService {
     if (!active) return;
     active.sendToBack();
     this.canvas?.requestRenderAll();
+    this.commitHistory();
   }
 
   toggleConnectionMode(): void {
@@ -2299,6 +2350,7 @@ export class DiagramCanvasService {
     this.store.showToast('Connection created.');
     this.refreshTree();
     canvas.requestRenderAll();
+    this.commitHistory();
   }
 
   // --- Collapse / expand ---------------------------------------------------
@@ -2334,6 +2386,7 @@ export class DiagramCanvasService {
     this.refreshProperties();
     this.refreshTree();
     canvas.requestRenderAll();
+    this.commitHistory();
   }
 
   private collectLogicalChildren(shape: ArchimateShape): Set<ArchimateShape> {
@@ -2361,6 +2414,261 @@ export class DiagramCanvasService {
       children.add(conn.target);
       this.collectByComposition(conn.target, children);
     }
+  }
+
+  // --- Undo / redo ---------------------------------------------------------
+
+  /** Undo and redo are whole-view snapshots: cheaper to keep correct than commands. */
+  private readonly sameSnapshot = (a: ViewSnapshot, b: ViewSnapshot): boolean =>
+    JSON.stringify(a) === JSON.stringify(b);
+
+  private historyFor(viewId: string): HistoryStack<ViewSnapshot> {
+    let stack = this.history.get(viewId);
+    if (!stack) {
+      stack = new HistoryStack<ViewSnapshot>(HISTORY_LIMIT, this.sameSnapshot);
+      this.history.set(viewId, stack);
+    }
+    return stack;
+  }
+
+  /** Starts the timeline of the active view if it has none yet. */
+  private ensureHistory(): void {
+    if (!this.activeViewId) return;
+    const stack = this.historyFor(this.activeViewId);
+    if (!stack.current()) stack.reset(this.captureSnapshot());
+    this.syncHistoryState();
+  }
+
+  private syncHistoryState(): void {
+    const stack = this.activeViewId ? this.history.get(this.activeViewId) : undefined;
+    this.store.canUndo.set(stack?.canUndo ?? false);
+    this.store.canRedo.set(stack?.canRedo ?? false);
+  }
+
+  /**
+   * Records the current state as one undo step. Cheap to call defensively: a state
+   * identical to the last one is ignored, so grouped operations stay a single step.
+   */
+  private commitHistory(): void {
+    if (this.restoringHistory || !this.canvas || !this.activeViewId) return;
+    if (this.historyFor(this.activeViewId).push(this.captureSnapshot())) {
+      this.syncHistoryState();
+    }
+  }
+
+  undo(): void {
+    this.stepHistory('undo', 'Nothing to undo.');
+  }
+
+  redo(): void {
+    this.stepHistory('redo', 'Nothing to redo.');
+  }
+
+  private stepHistory(direction: 'undo' | 'redo', emptyMessage: string): void {
+    if (!this.canvas || !this.activeViewId) return;
+
+    const stack = this.historyFor(this.activeViewId);
+    const snapshot = direction === 'undo' ? stack.undo() : stack.redo();
+    if (!snapshot) {
+      this.store.showToast(emptyMessage);
+      this.syncHistoryState();
+      return;
+    }
+
+    this.restoreSnapshot(snapshot);
+    this.syncHistoryState();
+    this.store.showToast(direction === 'undo' ? 'Undo.' : 'Redo.');
+  }
+
+  /** Rebuilds the whole canvas from plain data, without recording a history step. */
+  private restoreSnapshot(snapshot: ViewSnapshot): void {
+    const canvas = this.canvas;
+    if (!canvas) return;
+
+    this.restoringHistory = true;
+    try {
+      this.clearBendpoints();
+      this.connectionSource = null;
+      if (this.store.connectionMode()) {
+        this.store.exitConnectionMode();
+        this.applyConnectionMode(false);
+      }
+
+      canvas.discardActiveObject();
+      canvas.clear();
+      this.connections = [];
+      this.setupGridPattern();
+
+      const byId = new Map<string, ArchimateShape>();
+      for (const snap of snapshot.shapes) {
+        const shape = this.addShape({
+          label: snap.label,
+          color: snap.color || '#ffffff',
+          icon: snap.icon,
+          layer: snap.layer,
+          x: snap.left,
+          y: snap.top,
+          width: snap.width || null,
+          height: snap.height || null,
+          forceId: snap.id,
+          parentId: snap.parentId,
+          isImport: true,
+        });
+        if (!shape) continue;
+
+        shape.linkedView = snap.linkedView;
+        shape.archimateDoc = snap.doc;
+        shape.isCollapsed = snap.isCollapsed;
+        shape.expandedHeight = snap.expandedHeight ?? undefined;
+        this.applySnapshotRects(shape, snap);
+        byId.set(snap.id, shape);
+      }
+
+      // `addShape` sends group shapes to the back, so replay the stacking order.
+      const ordered = snapshot.shapes
+        .map((snap) => byId.get(snap.id))
+        .filter((shape): shape is ArchimateShape => Boolean(shape));
+      for (const shape of ordered) canvas.remove(shape);
+      for (const shape of ordered) canvas.add(shape);
+
+      for (const snap of snapshot.connections) {
+        const source = byId.get(snap.sourceId);
+        const target = byId.get(snap.targetId);
+        if (!source || !target) continue;
+        const conn = this.createConnection(source, target, snap.type, snap.bendpoints);
+        if (conn) conn.line.archimateDoc = snap.doc;
+      }
+
+      for (const shape of ordered) {
+        if (!shape.isCollapsed) continue;
+        for (const child of this.collectLogicalChildren(shape)) {
+          child.set({ visible: false, selectable: false, evented: false });
+        }
+      }
+
+      if (!this.restoreSelection(snapshot.selection, byId)) {
+        this.updateAllConnections();
+        this.refreshTree();
+        this.refreshProperties();
+        this.updateToolbar();
+        canvas.requestRenderAll();
+      }
+
+      this.saveCurrentViewState();
+    } finally {
+      this.restoringHistory = false;
+    }
+  }
+
+  /** Puts a rebuilt shape back to the exact child boxes it had when captured. */
+  private applySnapshotRects(shape: ArchimateShape, snap: SnapshotShape): void {
+    const rects = shape.getObjects().filter((child) => child.type === 'rect') as fabric.Rect[];
+    let resized = false;
+
+    snap.rects.forEach((saved, index) => {
+      const rect = rects[index];
+      if (!rect) return;
+      if (
+        Math.round(rect.width ?? 0) !== saved.width ||
+        Math.round(rect.height ?? 0) !== saved.height
+      ) {
+        rect.set({ width: saved.width, height: saved.height });
+        resized = true;
+      }
+      if (saved.fill && typeof rect.fill === 'string' && rect.fill !== saved.fill) {
+        rect.set('fill', saved.fill);
+      }
+    });
+
+    if (!resized) return;
+
+    shape.addWithUpdate();
+    shape.setPositionByOrigin(new fabric.Point(snap.left, snap.top), 'left', 'top');
+    shape.lastLeft = snap.left;
+    shape.lastTop = snap.top;
+    shape.setCoords();
+  }
+
+  private restoreSelection(
+    selection: SnapshotSelection,
+    byId: Map<string, ArchimateShape>,
+  ): boolean {
+    const canvas = this.canvas;
+    if (!canvas || !selection) return false;
+
+    if (selection.kind === 'shape') {
+      const shape = byId.get(selection.id);
+      if (!shape) return false;
+      canvas.setActiveObject(shape);
+      this.syncSelection();
+      return true;
+    }
+
+    const conn = this.connections[selection.index];
+    if (!conn) return false;
+    canvas.setActiveObject(conn.line);
+    this.syncSelection();
+    return true;
+  }
+
+  private captureSnapshot(): ViewSnapshot {
+    const shapes: SnapshotShape[] = this.allShapes().map((shape) => {
+      this.normalizeShapeScale(shape);
+
+      const rects = shape.getObjects().filter((child) => child.type === 'rect') as fabric.Rect[];
+      const body = rects[rects.length - 1];
+      const isGroupShape = rects.length > 1;
+      const bodyWidth = Math.round(body?.width ?? shape.width ?? 0);
+      const bodyHeight = Math.round(body?.height ?? shape.height ?? 0);
+      const expandedHeight = shape.expandedHeight ?? bodyHeight;
+
+      return {
+        id: shape.archimateId,
+        label: this.labelOf(shape),
+        icon: this.iconOf(shape),
+        layer: shape.archimateLayer || 'Other',
+        color: shape.originalColor,
+        doc: shape.archimateDoc ?? '',
+        linkedView: shape.linkedView ?? '',
+        parentId: shape.parentId ?? null,
+        isCollapsed: Boolean(shape.isCollapsed),
+        expandedHeight: shape.expandedHeight ?? null,
+        left: Math.round(shape.left ?? 0),
+        top: Math.round(shape.top ?? 0),
+        width: bodyWidth,
+        height: isGroupShape
+          ? Math.max(GROUP_TAB_HEIGHT, expandedHeight + GROUP_TAB_HEIGHT - 1)
+          : expandedHeight,
+        rects: rects.map((rect) => ({
+          width: Math.round(rect.width ?? 0),
+          height: Math.round(rect.height ?? 0),
+          fill: typeof rect.fill === 'string' ? rect.fill : '',
+        })),
+      };
+    });
+
+    const connections = this.connections.map((conn) => ({
+      sourceId: conn.source.archimateId,
+      targetId: conn.target.archimateId,
+      type: conn.type,
+      doc: conn.line.archimateDoc ?? '',
+      bendpoints: conn.bendpoints.map((point) => ({ x: point.x, y: point.y })),
+    }));
+
+    return { shapes, connections, selection: this.captureSelection() };
+  }
+
+  private captureSelection(): SnapshotSelection {
+    const active = this.resolveActiveObject();
+    if (!active || active.type === 'activeSelection') return null;
+
+    const shape = active as ArchimateShape;
+    if (shape.isShape) return { kind: 'shape', id: shape.archimateId };
+
+    const index = this.connections.findIndex(
+      (conn) => conn.line === (active as ConnectionLine),
+    );
+    return index >= 0 ? { kind: 'connection', index } : null;
   }
 
   // --- Views ---------------------------------------------------------------
@@ -2419,6 +2727,7 @@ export class DiagramCanvasService {
     this.refreshTree();
     this.refreshProperties();
     this.updateToolbar();
+    this.ensureHistory();
   }
 
   createView(name: string): void {
@@ -2496,6 +2805,7 @@ export class DiagramCanvasService {
         this.repository.clear();
         this.parsedViews.clear();
         this.views.clear();
+        this.history.clear();
 
         for (const view of model.views) {
           this.views.set(view.id, { name: view.name, objects: [], connections: [] });
@@ -2507,6 +2817,7 @@ export class DiagramCanvasService {
           this.activeViewId = DEFAULT_VIEW_ID;
           this.store.showToast('Parsed successfully, but no visual views found.');
           this.refreshTree();
+          this.ensureHistory();
           return;
         }
 
@@ -2554,6 +2865,8 @@ export class DiagramCanvasService {
     this.refreshTree();
     this.refreshProperties();
     this.updateToolbar();
+    this.history.clear();
+    this.ensureHistory();
   }
 }
 

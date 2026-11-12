@@ -51,6 +51,33 @@ import { DiagramStore } from '../services/diagram-store';
 
         <div class="vr d-none d-sm-block opacity-25"></div>
 
+        <div class="btn-group btn-group-sm" role="group" aria-label="History">
+          <button
+            type="button"
+            class="btn btn-light d-flex align-items-center justify-content-center"
+            aria-label="Undo"
+            ngbTooltip="Undo (Ctrl+Z)"
+            [disabled]="!store.canUndo()"
+            (click)="diagram.undo()"
+          >
+            <svg class="app-icon" aria-hidden="true">
+              <use href="icons.svg#arrow-counterclockwise"></use>
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="btn btn-light d-flex align-items-center justify-content-center"
+            aria-label="Redo"
+            ngbTooltip="Redo (Ctrl+Shift+Z)"
+            [disabled]="!store.canRedo()"
+            (click)="diagram.redo()"
+          >
+            <svg class="app-icon" aria-hidden="true"><use href="icons.svg#arrow-clockwise"></use></svg>
+          </button>
+        </div>
+
+        <div class="vr d-none d-sm-block opacity-25"></div>
+
         <button
           type="button"
           class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2"

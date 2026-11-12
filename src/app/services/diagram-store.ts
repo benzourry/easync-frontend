@@ -42,6 +42,9 @@ export class DiagramStore {
   readonly relationships = signal<RelationshipSummary[]>([]);
   readonly selection = signal<SelectionProperties>(EMPTY_SELECTION);
 
+  readonly canUndo = signal(false);
+  readonly canRedo = signal(false);
+
   readonly connectionMode = signal(false);
   readonly connectionHint = signal('Connection Mode: Select first shape to connect from.');
   readonly connectionType = signal<RelationshipType>('flow');

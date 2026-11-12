@@ -1,4 +1,4 @@
-import type { RelationshipType } from './archimate.models';
+import type { Point2D, RelationshipType } from './archimate.models';
 
 export type SidebarTab = 'explorer' | 'properties';
 
@@ -127,4 +127,51 @@ export interface ParsedView {
 export interface ParsedModel {
   views: ParsedView[];
   firstViewId: string | null;
+}
+
+/** Child box of a snapshot shape, so collapse and colour state survive a rebuild. */
+export interface SnapshotRect {
+  width: number;
+  height: number;
+  fill: string;
+}
+
+/** Plain-data description of one element, used to rebuild the canvas for undo/redo. */
+export interface SnapshotShape {
+  id: string;
+  label: string;
+  icon: string;
+  layer: string;
+  color: string;
+  doc: string;
+  linkedView: string;
+  parentId: string | null;
+  isCollapsed: boolean;
+  expandedHeight: number | null;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  rects: SnapshotRect[];
+}
+
+/** Plain-data description of one relationship, including its routing. */
+export interface SnapshotConnection {
+  sourceId: string;
+  targetId: string;
+  type: RelationshipType;
+  doc: string;
+  bendpoints: Point2D[];
+}
+
+export type SnapshotSelection =
+  | { kind: 'shape'; id: string }
+  | { kind: 'connection'; index: number }
+  | null;
+
+/** Complete undoable state of one view. */
+export interface ViewSnapshot {
+  shapes: SnapshotShape[];
+  connections: SnapshotConnection[];
+  selection: SnapshotSelection;
 }
