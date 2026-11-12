@@ -5,7 +5,7 @@ import { NgbDropdownModule } from '@ng-bootstrap/ng-bootstrap/dropdown';
 import { NgbNavModule } from '@ng-bootstrap/ng-bootstrap/nav';
 import { PALETTE_CATEGORIES, RELATIONSHIP_OPTIONS } from '../models/archimate.models';
 import type { PaletteItem, RelationshipType } from '../models/archimate.models';
-import type { AiProviderSettings } from '../models/ai.models';
+import type { AiSettingsPatch } from '../models/ai.models';
 import { TOGAF_DOMAINS, TOGAF_PHASES, findTogafPhase } from '../models/togaf.models';
 import type { TogafDomainId, TogafPhaseId } from '../models/togaf.models';
 import { AiDiagramService } from '../services/ai-diagram.service';
@@ -14,13 +14,22 @@ import { DiagramStore } from '../services/diagram-store';
 
 type PaletteTab = 'elements' | 'ai';
 
+/** The text inputs inside the assistant settings form. */
+type SettingField = 'baseUrl' | 'model' | 'apiKey';
+
+/** Keys are often pasted as 'Bearer sk-…' or wrapped in quotes; the server stores the raw value. */
+function normalizeApiKey(raw: string | undefined): string {
+  const withoutScheme = (raw?.trim() ?? '').replace(/^Bearer\s+/i, '').trim();
+  return withoutScheme.replace(/^(["'])(.*)\1$/, '$2').trim();
+}
+
 @Component({
   selector: 'app-palette-sidebar',
   imports: [DragDropModule, NgbAccordionModule, NgbDropdownModule, NgbNavModule],
   template: `
     <aside
       id="elements-palette"
-      class="app-sidebar offcanvas-md offcanvas-start d-flex flex-column border-end"
+      class="app-sidebar offcanvas-lg offcanvas-start d-flex flex-column border-end"
       [class.show]="store.paletteOpen()"
       aria-label="Elements palette"
     >
@@ -30,7 +39,7 @@ type PaletteTab = 'elements' | 'ai';
         <h2 class="h6 mb-0">{{ panelTitle() }}</h2>
         <button
           type="button"
-          class="btn-close d-md-none flex-shrink-0"
+          class="btn-close d-lg-none flex-shrink-0"
           aria-label="Close elements palette"
           (click)="store.togglePalette()"
         ></button>
@@ -65,6 +74,7 @@ type PaletteTab = 'elements' | 'ai';
                     type="button"
                     [class]="connectClass()"
                     [attr.aria-pressed]="store.connectionMode()"
+                    [disabled]="store.readOnly()"
                     title="Toggle connection mode"
                     (click)="diagram.toggleConnectionMode()"
                   >
@@ -132,6 +142,8 @@ type PaletteTab = 'elements' | 'ai';
                                   cdkDrag
                                   cdkDragPreviewClass="app-drag-preview"
                                   [cdkDragData]="payload(item)"
+                                  [cdkDragDisabled]="store.readOnly()"
+                                  [disabled]="store.readOnly()"
                                   [class]="itemClass(item)"
                                   [style.background-color]="item.isDashed ? null : item.color"
                                   [attr.aria-label]="'Add ' + item.label"
@@ -228,15 +240,26 @@ type PaletteTab = 'elements' | 'ai';
                   </button>
                 </div>
 
+                @if (!ai.isConfigured()) {
+                  <p class="form-text small mt-2 mb-0">
+                    Add your AI API key under Settings to use the assistant. It is stored on the
+                    EAsync server for your account.
+                  </p>
+                }
+
                 @if (settingsOpen()) {
-                  <div id="ai-settings" class="border rounded-2 p-2 mt-2 bg-body-tertiary">
+                  <form
+                    id="ai-settings"
+                    class="border rounded-2 p-2 mt-2 bg-body-tertiary"
+                    (submit)="saveSettings($event)"
+                  >
                     <div class="mb-2">
                       <label class="form-label small mb-1" for="ai-base-url">API base URL</label>
                       <input
                         id="ai-base-url"
                         type="url"
                         class="form-control form-control-sm"
-                        [value]="ai.settings().baseUrl"
+                        [value]="settingsDraft().baseUrl"
                         placeholder="https://api.openai.com/v1"
                         (input)="onSettingInput('baseUrl', $event)"
                       />
@@ -247,27 +270,63 @@ type PaletteTab = 'elements' | 'ai';
                         id="ai-model"
                         type="text"
                         class="form-control form-control-sm"
-                        [value]="ai.settings().model"
+                        [value]="settingsDraft().model"
                         placeholder="gpt-4o-mini"
                         (input)="onSettingInput('model', $event)"
                       />
                     </div>
-                    <div>
+                    <div class="mb-2">
                       <label class="form-label small mb-1" for="ai-api-key">API key</label>
                       <input
                         id="ai-api-key"
                         type="password"
                         class="form-control form-control-sm"
-                        autocomplete="off"
-                        [value]="ai.settings().apiKey"
+                        autocomplete="new-password"
+                        [value]="settingsDraft().apiKey"
+                        [attr.placeholder]="
+                          ai.settings().hasApiKey
+                            ? 'Stored on the server — leave blank to keep it'
+                            : 'sk-…'
+                        "
                         (input)="onSettingInput('apiKey', $event)"
                       />
                       <p class="form-text small mb-0">
                         Any OpenAI-compatible endpoint (OpenAI, Azure, OpenRouter, Ollama, LM
-                        Studio). Stored in this browser only.
+                        Studio). The key is kept on the EAsync server for your account and is never
+                        sent back to this browser.
                       </p>
                     </div>
-                  </div>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                      <button
+                        type="submit"
+                        class="btn btn-sm btn-primary d-flex align-items-center gap-2"
+                        [disabled]="ai.settingsBusy()"
+                      >
+                        @if (ai.settingsBusy()) {
+                          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                        }
+                        Save
+                      </button>
+                      @if (ai.settings().hasApiKey) {
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-danger"
+                          [disabled]="ai.settingsBusy()"
+                          (click)="clearApiKey()"
+                        >
+                          Remove key
+                        </button>
+                        <span class="badge text-bg-success">Key stored</span>
+                      } @else {
+                        <span class="badge text-bg-secondary">No key</span>
+                      }
+                    </div>
+                    @if (ai.settingsError(); as message) {
+                      <div class="alert alert-danger py-1 px-2 small mt-2 mb-0" role="alert">
+                        {{ message }}
+                      </div>
+                    }
+                  </form>
                 }
 
                 @if (ai.error(); as message) {
@@ -344,6 +403,11 @@ export class PaletteSidebar {
   protected readonly diagram = inject(DiagramCanvasService);
   protected readonly ai = inject(AiDiagramService);
 
+  constructor() {
+    // Knowing whether a key is stored drives the assistant panel, so fetch it up front.
+    this.ai.loadSettings();
+  }
+
   protected readonly categories = PALETTE_CATEGORIES;
   protected readonly relationshipOptions = RELATIONSHIP_OPTIONS;
   protected readonly phases = TOGAF_PHASES;
@@ -351,6 +415,8 @@ export class PaletteSidebar {
 
   protected readonly prompt = signal('');
   protected readonly settingsOpen = signal(false);
+  /** Staged text of the settings form; saved to the server on submit. */
+  protected readonly settingsDraft = signal<AiSettingsPatch>({ baseUrl: '', model: '', apiKey: '' });
   protected readonly tab = signal<PaletteTab>('elements');
   protected readonly panelTitle = computed(() =>
     this.tab() === 'ai' ? 'AI Assistant' : 'Elements Palette',
@@ -428,8 +494,29 @@ export class PaletteSidebar {
     }
   }
 
-  protected onSettingInput(field: keyof AiProviderSettings, event: Event): void {
-    this.ai.updateSettings({ [field]: (event.target as HTMLInputElement).value });
+  protected readonly onSettingInput = (field: SettingField, event: Event): void => {
+    this.settingsDraft.update((draft) => ({
+      ...draft,
+      [field]: (event.target as HTMLInputElement).value,
+    }));
+  };
+
+  protected saveSettings(event: Event): void {
+    event.preventDefault();
+    const draft = this.settingsDraft();
+    const patch: AiSettingsPatch = {
+      baseUrl: draft.baseUrl?.trim() ?? '',
+      model: draft.model?.trim() ?? '',
+    };
+    const apiKey = normalizeApiKey(draft.apiKey);
+    if (apiKey) patch.apiKey = apiKey;
+    this.ai.saveSettings(patch, () => this.settingsDraft.update((d) => ({ ...d, apiKey: '' })));
+  }
+
+  protected clearApiKey(): void {
+    this.ai.saveSettings({ clearApiKey: true }, () =>
+      this.settingsDraft.update((draft) => ({ ...draft, apiKey: '' })),
+    );
   }
 
   protected onPhaseChange(event: Event): void {
@@ -442,10 +529,27 @@ export class PaletteSidebar {
 
   protected toggleSettings(): void {
     this.settingsOpen.update((open) => !open);
+    if (!this.settingsOpen()) return;
+
+    const sync = () => {
+      const { baseUrl, model } = this.ai.settings();
+      this.settingsDraft.set({ baseUrl, model, apiKey: '' });
+    };
+    sync();
+    this.ai.loadSettings(() => {
+      if (this.settingsOpen()) sync();
+    });
+  }
+
+  /** Opens the settings form without closing it when it is already visible. */
+  private openSettings(): void {
+    if (this.settingsOpen()) return;
+    this.toggleSettings();
   }
 
   protected async generate(): Promise<void> {
     await this.ai.generate(this.prompt());
+    if (this.ai.providerFailed() || !this.ai.isConfigured()) this.openSettings();
   }
 
   protected apply(): void {

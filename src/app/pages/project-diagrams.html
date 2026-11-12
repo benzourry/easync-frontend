@@ -1,0 +1,257 @@
+<div class="app-page d-flex flex-column">
+  <app-topbar [title]="project()?.name ?? null" />
+
+  <main class="container-xl py-4 flex-grow-1">
+    <a class="small text-decoration-none d-inline-flex align-items-center gap-1 mb-3" routerLink="/projects">
+      <svg class="app-icon" aria-hidden="true"><use href="icons.svg#back"></use></svg>
+      All projects
+    </a>
+
+    @if (loading()) {
+      <div class="d-flex align-items-center gap-2 text-secondary" role="status">
+        <div class="spinner-border spinner-border-sm" aria-hidden="true"></div>
+        <span>Loading project…</span>
+      </div>
+    } @else if (error(); as message) {
+      <div class="alert alert-danger d-flex flex-wrap align-items-center gap-2" role="alert">
+        <span class="me-auto">{{ message }}</span>
+        <a class="btn btn-sm btn-outline-danger" routerLink="/projects">Back to projects</a>
+      </div>
+    } @else {
+      @if (project(); as current) {
+        <div class="app-page-header d-flex flex-wrap align-items-start">
+          <div class="me-auto">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <h1 class="h3 mb-0">{{ current.name }}</h1>
+              <span class="badge" [class]="roleClass(current.role)">{{ current.role }}</span>
+            </div>
+            <p class="text-secondary mb-0">{{ current.description || 'No description.' }}</p>
+          </div>
+          @if (canEdit()) {
+            <button type="button" class="btn btn-primary" (click)="openCreate()">New diagram</button>
+          }
+        </div>
+
+        <section aria-labelledby="diagrams-heading" class="mb-5">
+          <h2 id="diagrams-heading" class="app-section-title">Diagrams</h2>
+
+          @if (diagrams().length === 0) {
+            <div class="card">
+              <div class="card-body p-4 text-center">
+                <p class="mb-2">This project has no diagrams yet.</p>
+                @if (canEdit()) {
+                  <button type="button" class="btn btn-primary" (click)="openCreate()">
+                    Create the first diagram
+                  </button>
+                }
+              </div>
+            </div>
+          } @else {
+            <ul class="row g-3 list-unstyled">
+              @for (diagram of diagrams(); track diagram.id) {
+                <li class="col-12 col-md-6 col-xl-4">
+                  <article class="card h-100">
+                    <div class="card-body d-flex flex-column gap-2">
+                      <h3 class="h6 mb-0">
+                        <a class="text-decoration-none" [routerLink]="['/diagrams', diagram.id]">
+                          {{ diagram.name }}
+                        </a>
+                      </h3>
+                      <dl class="row row-cols-2 g-0 small text-secondary mb-0">
+                        <dt class="col fw-normal">Views</dt>
+                        <dd class="col-auto mb-0 text-end">{{ diagram.viewCount }}</dd>
+                        <dt class="col fw-normal">Version</dt>
+                        <dd class="col-auto mb-0 text-end">{{ diagram.version }}</dd>
+                        <dt class="col fw-normal">Updated</dt>
+                        <dd class="col-auto mb-0 text-end">
+                          {{ diagram.updatedAt | date: 'short' }}
+                        </dd>
+                        <dt class="col fw-normal">By</dt>
+                        <dd class="col-auto mb-0 text-end text-truncate">
+                          {{ diagram.lastModifiedBy || '—' }}
+                        </dd>
+                      </dl>
+                    </div>
+                    <div class="card-footer d-flex flex-wrap gap-2 bg-body">
+                      <a class="btn btn-sm btn-primary" [routerLink]="['/diagrams', diagram.id]">Open</a>
+                      @if (canEdit()) {
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-danger ms-auto"
+                          (click)="openDelete(diagram)"
+                        >
+                          Delete
+                        </button>
+                      }
+                    </div>
+                  </article>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+
+        <section aria-labelledby="members-heading">
+          <h2 id="members-heading" class="app-section-title">Members</h2>
+
+          @if (memberError(); as message) {
+            <div class="alert alert-danger py-2 small" role="alert">{{ message }}</div>
+          }
+
+          <div class="card">
+            <ul class="list-group list-group-flush">
+              @for (member of members(); track member.userId) {
+                <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                  <div class="me-auto">
+                    <p class="mb-0 fw-semibold">
+                      {{ member.displayName }}
+                      @if (isCurrentUser(member)) {
+                        <span class="text-secondary fw-normal small">(you)</span>
+                      }
+                    </p>
+                    <p class="mb-0 small text-secondary">{{ member.email }}</p>
+                  </div>
+
+                  @if (isOwner() && member.role !== 'OWNER') {
+                    @if (pendingRemoval() === member.userId) {
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="small">Remove this member?</span>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-danger"
+                          [disabled]="memberBusy()"
+                          (click)="removeMember(member.userId)"
+                        >
+                          Remove
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-secondary"
+                          (click)="pendingRemoval.set(null)"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    } @else {
+                      <label class="visually-hidden" [attr.for]="'role-' + member.userId">
+                        Role for {{ member.displayName }}
+                      </label>
+                      <select
+                        class="form-select form-select-sm w-auto"
+                        [id]="'role-' + member.userId"
+                        [value]="member.role"
+                        [disabled]="memberBusy()"
+                        (change)="changeRole(member, $event)"
+                      >
+                        <option value="EDITOR">Editor</option>
+                        <option value="VIEWER">Viewer</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-danger"
+                        [disabled]="memberBusy()"
+                        (click)="pendingRemoval.set(member.userId)"
+                      >
+                        Remove
+                      </button>
+                    }
+                  } @else {
+                    <span class="badge" [class]="roleClass(member.role)">{{ member.role }}</span>
+                  }
+                </li>
+              }
+            </ul>
+
+            @if (isOwner()) {
+              <div class="card-footer bg-body">
+                <h3 class="h6">Invite a member</h3>
+                <p class="small text-secondary">
+                  The person must have signed in to EAsync at least once.
+                </p>
+                <form class="row g-2 align-items-end" (submit)="$event.preventDefault(); addMember()">
+                  <div class="col-12 col-sm">
+                    <label class="form-label small" for="invite-email">Email</label>
+                    <input
+                      id="invite-email"
+                      type="email"
+                      class="form-control form-control-sm"
+                      autocomplete="email"
+                      [value]="inviteEmail()"
+                      (input)="onInviteEmail($event)"
+                    />
+                  </div>
+                  <div class="col-auto">
+                    <label class="form-label small" for="invite-role">Role</label>
+                    <select
+                      id="invite-role"
+                      class="form-select form-select-sm"
+                      [value]="inviteRole()"
+                      (change)="onInviteRole($event)"
+                    >
+                      <option value="EDITOR">Editor</option>
+                      <option value="VIEWER">Viewer</option>
+                    </select>
+                  </div>
+                  <div class="col-auto">
+                    <button type="submit" class="btn btn-sm btn-primary" [disabled]="memberBusy()">
+                      {{ memberBusy() ? 'Inviting…' : 'Invite' }}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            }
+          </div>
+        </section>
+      }
+    }
+  </main>
+</div>
+
+<ng-template #createTpl let-modal>
+  <div class="modal-header">
+    <h2 class="modal-title h5" id="create-diagram-title">New diagram</h2>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
+  </div>
+  <div class="modal-body">
+    @if (createError(); as message) {
+      <div class="alert alert-danger py-2 small" role="alert">{{ message }}</div>
+    }
+    <label class="form-label" for="diagram-name">Name</label>
+    <input
+      id="diagram-name"
+      type="text"
+      class="form-control"
+      placeholder="e.g. Payment Landscape"
+      [value]="createName()"
+      (input)="onCreateName($event)"
+    />
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" (click)="modal.dismiss()">Cancel</button>
+    <button type="button" class="btn btn-primary" [disabled]="createBusy()" (click)="submitCreate(modal)">
+      {{ createBusy() ? 'Creating…' : 'Create and open' }}
+    </button>
+  </div>
+</ng-template>
+
+<ng-template #deleteTpl let-modal>
+  <div class="modal-header">
+    <h2 class="modal-title h5 text-danger" id="delete-diagram-title">Delete diagram</h2>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
+  </div>
+  <div class="modal-body">
+    @if (deleteError(); as message) {
+      <div class="alert alert-danger py-2 small" role="alert">{{ message }}</div>
+    }
+    <p class="mb-0">
+      Delete <strong>{{ deleting()?.name }}</strong> and all of its views and revisions? This
+      cannot be undone.
+    </p>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" (click)="modal.dismiss()">Cancel</button>
+    <button type="button" class="btn btn-danger" [disabled]="deleteBusy()" (click)="submitDelete(modal)">
+      {{ deleteBusy() ? 'Deleting…' : 'Delete diagram' }}
+    </button>
+  </div>
+</ng-template>

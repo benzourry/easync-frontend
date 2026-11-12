@@ -1,0 +1,102 @@
+<div class="app-page app-auth-page d-flex flex-column">
+  <div class="d-flex justify-content-end p-3">
+    <button
+      type="button"
+      class="btn btn-sm btn-light app-icon-btn"
+      [attr.aria-label]="theme.isDark() ? 'Switch to light mode' : 'Switch to dark mode'"
+      (click)="theme.toggle()"
+    >
+      <svg class="app-icon" aria-hidden="true">
+        <use [attr.href]="theme.isDark() ? 'icons.svg#sun' : 'icons.svg#moon-stars'"></use>
+      </svg>
+    </button>
+  </div>
+
+  <main class="app-auth container flex-grow-1 d-flex align-items-center justify-content-center">
+    <div class="app-auth-card card w-100">
+      <div class="card-body p-4">
+        <div class="d-flex align-items-center gap-2 mb-4">
+          <img class="app-logo" src="easync-logo.png" alt="EAsync" />
+          <p class="mb-0 small text-secondary">ArchiMate Designer</p>
+        </div>
+
+        <h1 class="h4">Sign in</h1>
+        <p class="text-secondary">Choose how you want to continue to your projects.</p>
+
+        @if (errorMessage(); as message) {
+          <div class="alert alert-danger" role="alert">{{ message }}</div>
+        }
+
+        @if (loadingProviders()) {
+          <div class="d-flex align-items-center gap-2 text-secondary" role="status">
+            <div class="spinner-border spinner-border-sm" aria-hidden="true"></div>
+            <span>Loading sign-in options…</span>
+          </div>
+        } @else if (providersError(); as message) {
+          <div class="alert alert-warning mb-0" role="alert">
+            <p class="mb-1 fw-semibold">Cannot load sign-in options</p>
+            <p class="mb-0 small">{{ message }}</p>
+          </div>
+        } @else {
+          <div class="d-grid gap-2">
+            @for (provider of providers(); track provider.id) {
+              <button
+                type="button"
+                class="btn btn-outline-secondary py-2"
+                (click)="startLogin(provider)"
+              >
+                Continue with {{ provider.displayName }}
+              </button>
+            } @empty {
+              <p class="text-secondary mb-0">
+                No sign-in providers are configured on the server.
+              </p>
+            }
+          </div>
+        }
+
+        @if (devLoginEnabled) {
+          <div class="app-auth-divider my-4"><span>or</span></div>
+          <h2 class="h6">Local developer sign-in</h2>
+          <p class="small text-secondary">
+            Only available while the server has dev login enabled.
+          </p>
+          <form (submit)="devLogin($event)" novalidate>
+            @if (devError(); as message) {
+              <div class="alert alert-danger py-2 small" role="alert">{{ message }}</div>
+            }
+            <div class="mb-2">
+              <label class="form-label" for="dev-email">Email</label>
+              <input
+                id="dev-email"
+                type="email"
+                class="form-control"
+                autocomplete="email"
+                [value]="devEmail()"
+                (input)="onDevEmail($event)"
+              />
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="dev-name">Display name</label>
+              <input
+                id="dev-name"
+                type="text"
+                class="form-control"
+                autocomplete="name"
+                [value]="devName()"
+                (input)="onDevName($event)"
+              />
+            </div>
+            <button type="submit" class="btn btn-primary w-100" [disabled]="devBusy()">
+              {{ devBusy() ? 'Signing in…' : 'Sign in locally' }}
+            </button>
+          </form>
+        }
+
+        <p class="small text-secondary mt-4 mb-0">
+          Trouble signing in? Ask a project owner to add your email to their project.
+        </p>
+      </div>
+    </div>
+  </main>
+</div>

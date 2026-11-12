@@ -45,6 +45,11 @@ export class DiagramStore {
   readonly canUndo = signal(false);
   readonly canRedo = signal(false);
 
+  /** Set while the signed-in user may only read the open diagram. */
+  readonly readOnly = signal(false);
+  /** Bumped on every canvas mutation so persistence can schedule an autosave. */
+  readonly documentRevision = signal(0);
+
   readonly connectionMode = signal(false);
   readonly connectionHint = signal('Connection Mode: Select first shape to connect from.');
   readonly connectionType = signal<RelationshipType>('flow');
@@ -58,6 +63,7 @@ export class DiagramStore {
   readonly editDialogValue = signal<string | null>(null);
   readonly clearDialogOpen = signal(false);
   readonly newViewDialogOpen = signal(false);
+  readonly revisionsDialogOpen = signal(false);
 
   readonly isDark = this.theme.isDark;
 
@@ -126,5 +132,9 @@ export class DiagramStore {
   setActiveView(id: string): void {
     this.activeViewId.set(id);
     this.views.update((views) => views.map((view) => ({ ...view, isActive: view.id === id })));
+  }
+
+  markDocumentChanged(): void {
+    this.documentRevision.update((revision) => revision + 1);
   }
 }

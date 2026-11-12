@@ -14,7 +14,7 @@ type RepositoryItem = RepositoryLayer['items'][number];
   template: `
     <aside
       id="explorer-sidebar"
-      class="app-sidebar app-sidebar-end offcanvas-md offcanvas-end d-flex flex-column border-start"
+      class="app-sidebar app-sidebar-end offcanvas-lg offcanvas-end d-flex flex-column border-start"
       [class.show]="store.explorerOpen()"
       aria-label="Explorer and properties"
     >
@@ -48,6 +48,7 @@ type RepositoryItem = RepositoryLayer['items'][number];
                     <button
                       type="button"
                       class="btn btn-sm btn-outline-success border-dashed w-100 mt-1"
+                      [disabled]="store.readOnly()"
                       (click)="store.newViewDialogOpen.set(true)"
                     >
                       + New View
@@ -68,6 +69,7 @@ type RepositoryItem = RepositoryLayer['items'][number];
                                 cdkDrag
                                 cdkDragPreviewClass="app-drag-preview"
                                 [cdkDragData]="payload(item, layer)"
+                                [cdkDragDisabled]="store.readOnly()"
                                 class="app-drag-row d-flex align-items-center gap-2 px-2 py-1 rounded"
                                 [title]="item.label"
                               >
@@ -137,7 +139,7 @@ type RepositoryItem = RepositoryLayer['items'][number];
         </ul>
         <button
           type="button"
-          class="btn-close d-md-none align-self-center mx-2 flex-shrink-0"
+          class="btn-close d-lg-none align-self-center mx-2 flex-shrink-0"
           aria-label="Close explorer panel"
           (click)="store.toggleExplorer()"
         ></button>

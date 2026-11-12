@@ -1,6 +1,7 @@
 import { Service, effect, inject } from '@angular/core';
 import { getArchimateTypeInfo } from '../models/archimate.models';
 import type { GlobalElement, PaletteItem, Point2D, RelationshipType } from '../models/archimate.models';
+import type { DiagramDto, DiagramViewDto } from '../models/api.models';
 import type {
   DiagramConnectionInfo,
   DiagramShapeInfo,
@@ -42,6 +43,8 @@ const GROUP_TAB_HEIGHT = 24;
 const MIN_SHAPE_WIDTH = 60;
 const MIN_SHAPE_HEIGHT = 40;
 const DEFAULT_VIEW_ID = 'view_default';
+/** Snapshot used for a view that has never been rendered, matching the server's seed value. */
+const EMPTY_SNAPSHOT: ViewSnapshot = { shapes: [], connections: [], selection: null };
 /** How many undo steps are kept per view. */
 const HISTORY_LIMIT = 60;
 const DASHED_TYPES: RelationshipType[] = ['realization', 'access', 'influence', 'flow'];
@@ -51,6 +54,11 @@ const GROUP_SHAPE_ICONS = ['⊞', '📁'];
 const CONNECT_MODE_HINT = 'Connection Mode: Select first shape to connect from.';
 const CONNECT_TARGET_HINT = 'Connection Mode: Select target shape to complete connection.';
 const CONNECT_DONE_HINT = 'Connection created. Select another shape to start a new connection.';
+/** Space between the floating toolbar and the object it belongs to. */
+const TOOLBAR_GAP = 10;
+/** Distance from the object's top edge to the toolbar's own top edge. */
+const TOOLBAR_OFFSET = 46;
+const TOOLBAR_MIN_TOP = 8;
 
 /** Payload handed to the canvas when a palette tile or repository entry is dropped. */
 export interface DragPayload {
@@ -59,6 +67,15 @@ export interface DragPayload {
   icon: string;
   layer: string;
   archimateId?: string;
+}
+
+/** Coerce persisted snapshot fields so an older or hand-edited payload cannot break rendering. */
+function asText(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function asNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
 interface AddShapeOptions {
@@ -122,8 +139,13 @@ export class DiagramCanvasService {
     [DEFAULT_VIEW_ID, { name: 'Default View', objects: [], connections: [] }],
   ]);
   private readonly parsedViews = new Map<string, ParsedView>();
+  /** Serialized state per view, so inactive views can be saved and restored losslessly. */
+  private readonly snapshots = new Map<string, ViewSnapshot>();
   private readonly repository = new Map<string, GlobalElement>();
   private activeViewId = DEFAULT_VIEW_ID;
+  /** View to render as soon as the canvas exists (set when a diagram loads before attach). */
+  private pendingViewId: string | null = null;
+  private readOnly = false;
 
   private bendpointHandles: BendpointHandle[] = [];
   private clipboard: CopiedItem[] = [];
@@ -141,8 +163,6 @@ export class DiagramCanvasService {
   private tempLine: fabric.Line | null = null;
   private lastClientX = 0;
   private lastClientY = 0;
-  private lastMouseX = 0;
-  private lastMouseY = 0;
   private syncingVisibility = false;
 
   private touchDistance = 0;
@@ -159,6 +179,11 @@ export class DiagramCanvasService {
     effect(() => {
       const isDark = this.theme.isDark();
       this.applyTheme(isDark);
+    });
+
+    effect(() => {
+      const readOnly = this.store.readOnly();
+      this.applyReadOnly(readOnly);
     });
   }
 
@@ -187,6 +212,13 @@ export class DiagramCanvasService {
     this.refreshTree();
     this.refreshProperties();
     this.ensureHistory();
+    this.applyReadOnly(this.store.readOnly());
+
+    const pending = this.pendingViewId;
+    if (pending) {
+      this.pendingViewId = null;
+      this.selectView(pending);
+    }
     this.canvas.requestRenderAll();
   }
 
@@ -199,6 +231,8 @@ export class DiagramCanvasService {
 
     const canvas = this.canvas;
     if (canvas) {
+      // Keep the live view in the snapshots so a save triggered by teardown still sees it.
+      this.saveCurrentViewState();
       canvas.dispose();
       const upper = this.upperCanvasEl;
       upper?.replaceWith(upper.cloneNode(false));
@@ -208,6 +242,28 @@ export class DiagramCanvasService {
     this.history.clear();
     this.store.canUndo.set(false);
     this.store.canRedo.set(false);
+  }
+
+  /** Blocks editing for view-only shares while keeping pan, zoom and selection-free reading. */
+  private applyReadOnly(readOnly: boolean): void {
+    this.readOnly = readOnly;
+    const canvas = this.canvas;
+    if (!canvas) return;
+
+    canvas.selection = !readOnly;
+    for (const object of canvas.getObjects()) {
+      object.set({
+        selectable: !readOnly,
+        evented: !readOnly,
+        hoverCursor: readOnly ? 'default' : 'move',
+      });
+    }
+    if (readOnly) {
+      canvas.discardActiveObject();
+      if (this.store.connectionMode()) this.store.exitConnectionMode();
+    }
+    canvas.requestRenderAll();
+    this.updateToolbar();
   }
 
   private resizeCanvas(): void {
@@ -325,13 +381,14 @@ export class DiagramCanvasService {
 
   /** Places a palette/repository payload only when it was dropped onto the canvas surface. */
   dropPayloadAt(payload: DragPayload, clientX: number, clientY: number): void {
+    if (this.readOnly) return;
     if (!this.isPointOverCanvas(clientX, clientY)) return;
     this.handleDrop(payload, clientX, clientY);
   }
 
   addPaletteItem(item: PaletteItem | DragPayload): void {
     const canvas = this.getCanvas();
-    if (!canvas) return;
+    if (!canvas || this.readOnly) return;
 
     const vpt = canvas.viewportTransform ?? [1, 0, 0, 1, 0, 0];
     const centerX = (canvas.getWidth() / 2 - vpt[4]) / vpt[0];
@@ -353,7 +410,7 @@ export class DiagramCanvasService {
   handleDrop(payload: DragPayload, clientX: number, clientY: number): void {
     const canvas = this.getCanvas();
     const host = this.host;
-    if (!canvas || !host) return;
+    if (!canvas || !host || this.readOnly) return;
 
     const rect = host.getBoundingClientRect();
     const vpt = canvas.viewportTransform ?? [1, 0, 0, 1, 0, 0];
@@ -1036,7 +1093,7 @@ export class DiagramCanvasService {
   addBendpoint(): void {
     const canvas = this.canvas;
     const active = this.resolveActiveObject() as ConnectionLine | null;
-    if (!canvas || !active?.isConnection) return;
+    if (!canvas || !active?.isConnection || this.readOnly) return;
 
     const conn = this.connections.find((candidate) => candidate.line === active);
     if (!conn) return;
@@ -1060,7 +1117,7 @@ export class DiagramCanvasService {
   clearBendpointsAction(): void {
     const canvas = this.canvas;
     const active = this.resolveActiveObject() as ConnectionLine | null;
-    if (!canvas || !active?.isConnection) return;
+    if (!canvas || !active?.isConnection || this.readOnly) return;
 
     const conn = this.connections.find((candidate) => candidate.line === active);
     if (!conn) return;
@@ -1108,22 +1165,12 @@ export class DiagramCanvasService {
     canvas.on('object:scaling', (opt) => this.onObjectScaling(opt));
   }
 
-  /** Stores the pointer position in CSS pixels relative to the canvas element. */
-  private updateMouseCoords(event: Event): void {
-    const rect = this.upperCanvasEl?.getBoundingClientRect();
-    const mouse = event as MouseEvent;
-    if (!rect || typeof mouse.clientX !== 'number') return;
-    this.lastMouseX = mouse.clientX - rect.left;
-    this.lastMouseY = mouse.clientY - rect.top;
-  }
-
   private onMouseDown(opt: fabric.IEvent<Event>): void {
     const canvas = this.canvas;
     if (!canvas) return;
 
     const event = opt.e as MouseEvent;
     const pointer = canvas.getPointer(event);
-    this.updateMouseCoords(event);
 
     if (event.altKey || event.button === 1 || this.isSpaceDown) {
       this.isPanning = true;
@@ -1165,7 +1212,6 @@ export class DiagramCanvasService {
 
     const event = opt.e as MouseEvent;
     const pointer = canvas.getPointer(event);
-    this.updateMouseCoords(event);
 
     if (this.isPanning) {
       const vpt = canvas.viewportTransform ?? [1, 0, 0, 1, 0, 0];
@@ -1184,8 +1230,7 @@ export class DiagramCanvasService {
       canvas.requestRenderAll();
     }
 
-    const active = this.resolveActiveObject() as ConnectionLine | null;
-    if (active?.isConnection) this.updateToolbar();
+    if (this.isPanning || this.isShiftDragging) this.updateToolbar();
   }
 
   private onMouseUp(opt: fabric.IEvent<Event>): void {
@@ -1196,6 +1241,7 @@ export class DiagramCanvasService {
       this.isPanning = false;
       canvas.selection = true;
       canvas.setCursor('default');
+      this.updateToolbar();
     }
 
     if (!this.isShiftDragging) return;
@@ -1216,6 +1262,7 @@ export class DiagramCanvasService {
       this.refreshTree();
       this.commitHistory();
     }
+    this.updateToolbar();
     canvas.requestRenderAll();
   }
 
@@ -1224,7 +1271,6 @@ export class DiagramCanvasService {
     if (!canvas) return;
 
     const event = opt.e as WheelEvent;
-    this.updateMouseCoords(event);
     if (event.ctrlKey || event.metaKey) {
       event.preventDefault();
       event.stopPropagation();
@@ -1556,6 +1602,14 @@ export class DiagramCanvasService {
     const tag = active?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable) return;
 
+    const isCopy = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c';
+    if (isCopy) {
+      this.copySelection();
+      return;
+    }
+
+    if (this.readOnly) return;
+
     // Text fields keep the browser's native undo, so these come after the guard.
     if (event.ctrlKey || event.metaKey) {
       const key = event.key.toLowerCase();
@@ -1585,14 +1639,7 @@ export class DiagramCanvasService {
       return;
     }
 
-    const isCopy = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c';
     const isPaste = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v';
-
-    if (isCopy) {
-      this.copySelection();
-      return;
-    }
-
     if (isPaste) {
       this.pasteCopied();
     }
@@ -1983,6 +2030,7 @@ export class DiagramCanvasService {
     const canvas = this.canvas;
     if (!canvas) return;
 
+    const hide = (): void => this.store.toolbar.set({ visible: false, left: 0, top: 0 });
     const active = this.resolveActiveObject();
     if (
       !active ||
@@ -1991,34 +2039,28 @@ export class DiagramCanvasService {
       this.isPanning ||
       this.isShiftDragging
     ) {
-      this.store.toolbar.set({ visible: false, left: 0, top: 0 });
+      hide();
       return;
     }
 
-    const connection = active as ConnectionLine;
-    if (connection.isConnection) {
-      this.store.toolbar.set({
-        visible: true,
-        left: this.lastMouseX,
-        top: Math.max(10, this.lastMouseY - 46),
-      });
+    const isConnection = (active as ConnectionLine).isConnection === true;
+    const isShape = (active as ArchimateShape).isShape === true;
+    if (!isConnection && !isShape) {
+      hide();
       return;
     }
 
-    const shape = active as ArchimateShape;
-    if (!shape.isShape) {
-      this.store.toolbar.set({ visible: false, left: 0, top: 0 });
-      return;
-    }
-
-    const bounds = shape.getBoundingRect();
-    const vpt = canvas.viewportTransform ?? [1, 0, 0, 1, 0, 0];
-    const centerX = (bounds.left + bounds.width / 2) * vpt[0] + vpt[4];
-    const topY = bounds.top * vpt[3] + vpt[5];
+    // `getBoundingRect` already maps scene coordinates through the viewport
+    // transform, so it returns CSS pixels relative to the canvas element, which
+    // is exactly the coordinate space the toolbar is positioned in.
+    const bounds = active.getBoundingRect(false, true);
+    const above = bounds.top - TOOLBAR_OFFSET;
     this.store.toolbar.set({
       visible: true,
-      left: centerX,
-      top: Math.max(10, topY - 46),
+      left: bounds.left + bounds.width / 2,
+      // Flip below the object when there is no room above it, so the toolbar
+      // never gets pinned to the top of the canvas.
+      top: above >= TOOLBAR_MIN_TOP ? above : bounds.top + bounds.height + TOOLBAR_GAP,
     });
   }
 
@@ -2070,6 +2112,10 @@ export class DiagramCanvasService {
   saveLabel(text: string): void {
     const shape = this.editShape;
     const textbox = this.editTextbox;
+    if (this.readOnly) {
+      this.closeLabelDialog();
+      return;
+    }
     this.closeLabelDialog();
 
     if (!shape || !textbox) return;
@@ -2090,6 +2136,7 @@ export class DiagramCanvasService {
   }
 
   editActiveObject(): void {
+    if (this.readOnly) return;
     const active = this.canvas?.getActiveObject() as ArchimateShape | undefined;
     if (active?.isShape) {
       this.openLabelDialog(active);
@@ -2101,7 +2148,7 @@ export class DiagramCanvasService {
   updateProperty(property: 'name' | 'parent' | 'link' | 'color' | 'type' | 'doc', value: string): void {
     const canvas = this.canvas;
     const active = canvas?.getActiveObject();
-    if (!canvas || !active) return;
+    if (!canvas || !active || this.readOnly) return;
 
     const shape = active as ArchimateShape;
     const connection = active as ConnectionLine;
@@ -2161,7 +2208,7 @@ export class DiagramCanvasService {
   resetColor(): void {
     const canvas = this.canvas;
     const active = canvas?.getActiveObject() as ArchimateShape | undefined;
-    if (!canvas || !active?.isShape) return;
+    if (!canvas || !active?.isShape || this.readOnly) return;
 
     const rect = active.getObjects().find((child) => child.type === 'rect') as
       | fabric.Rect
@@ -2204,7 +2251,7 @@ export class DiagramCanvasService {
   deleteActive(): void {
     const canvas = this.canvas;
     const active = canvas?.getActiveObject();
-    if (!canvas || !active) return;
+    if (!canvas || !active || this.readOnly) return;
 
     const targets =
       active.type === 'activeSelection'
@@ -2271,7 +2318,7 @@ export class DiagramCanvasService {
 
   bringToFront(): void {
     const active = this.resolveActiveObject();
-    if (!active) return;
+    if (!active || this.readOnly) return;
     active.bringToFront();
     for (const handle of this.bendpointHandles) handle.bringToFront();
     this.canvas?.requestRenderAll();
@@ -2280,13 +2327,14 @@ export class DiagramCanvasService {
 
   sendToBack(): void {
     const active = this.resolveActiveObject();
-    if (!active) return;
+    if (!active || this.readOnly) return;
     active.sendToBack();
     this.canvas?.requestRenderAll();
     this.commitHistory();
   }
 
   toggleConnectionMode(): void {
+    if (this.readOnly) return;
     this.store.toggleConnectionMode();
     this.applyConnectionMode(this.store.connectionMode());
   }
@@ -2358,7 +2406,7 @@ export class DiagramCanvasService {
   toggleCollapseExpand(): void {
     const canvas = this.canvas;
     const shape = canvas?.getActiveObject() as ArchimateShape | undefined;
-    if (!canvas || !shape?.isShape) return;
+    if (!canvas || !shape?.isShape || this.readOnly) return;
 
     const children = this.collectLogicalChildren(shape);
     const previousPosition = shape.getPointByOrigin('left', 'top');
@@ -2453,14 +2501,17 @@ export class DiagramCanvasService {
     if (this.restoringHistory || !this.canvas || !this.activeViewId) return;
     if (this.historyFor(this.activeViewId).push(this.captureSnapshot())) {
       this.syncHistoryState();
+      this.store.markDocumentChanged();
     }
   }
 
   undo(): void {
+    if (this.readOnly) return;
     this.stepHistory('undo', 'Nothing to undo.');
   }
 
   redo(): void {
+    if (this.readOnly) return;
     this.stepHistory('redo', 'Nothing to redo.');
   }
 
@@ -2477,6 +2528,7 @@ export class DiagramCanvasService {
 
     this.restoreSnapshot(snapshot);
     this.syncHistoryState();
+    this.store.markDocumentChanged();
     this.store.showToast(direction === 'undo' ? 'Undo.' : 'Redo.');
   }
 
@@ -2501,17 +2553,20 @@ export class DiagramCanvasService {
 
       const byId = new Map<string, ArchimateShape>();
       for (const snap of snapshot.shapes) {
+        // Revisions may hold snapshots written by an older schema; never let one bad entry abort the render.
+        const id = typeof snap?.id === 'string' ? snap.id : '';
+        if (!id) continue;
         const shape = this.addShape({
-          label: snap.label,
-          color: snap.color || '#ffffff',
-          icon: snap.icon,
-          layer: snap.layer,
-          x: snap.left,
-          y: snap.top,
-          width: snap.width || null,
-          height: snap.height || null,
-          forceId: snap.id,
-          parentId: snap.parentId,
+          label: asText(snap.label),
+          color: asText(snap.color) || '#ffffff',
+          icon: asText(snap.icon),
+          layer: asText(snap.layer),
+          x: asNumber(snap.left, 0),
+          y: asNumber(snap.top, 0),
+          width: asNumber(snap.width, 0) || null,
+          height: asNumber(snap.height, 0) || null,
+          forceId: id,
+          parentId: typeof snap.parentId === 'string' ? snap.parentId : null,
           isImport: true,
         });
         if (!shape) continue;
@@ -2532,10 +2587,15 @@ export class DiagramCanvasService {
       for (const shape of ordered) canvas.add(shape);
 
       for (const snap of snapshot.connections) {
-        const source = byId.get(snap.sourceId);
-        const target = byId.get(snap.targetId);
-        if (!source || !target) continue;
-        const conn = this.createConnection(source, target, snap.type, snap.bendpoints);
+        const source = byId.get(snap?.sourceId);
+        const target = byId.get(snap?.targetId);
+        if (!source || !target || !snap.type) continue;
+        const conn = this.createConnection(
+          source,
+          target,
+          snap.type,
+          Array.isArray(snap.bendpoints) ? snap.bendpoints : [],
+        );
         if (conn) conn.line.archimateDoc = snap.doc;
       }
 
@@ -2565,7 +2625,7 @@ export class DiagramCanvasService {
     const rects = shape.getObjects().filter((child) => child.type === 'rect') as fabric.Rect[];
     let resized = false;
 
-    snap.rects.forEach((saved, index) => {
+    (Array.isArray(snap.rects) ? snap.rects : []).forEach((saved, index) => {
       const rect = rects[index];
       if (!rect) return;
       if (
@@ -2684,6 +2744,7 @@ export class DiagramCanvasService {
       objects: [...objects],
       connections: [...this.connections],
     });
+    this.snapshots.set(this.activeViewId, this.captureSnapshot());
   }
 
   selectView(viewId: string): void {
@@ -2699,6 +2760,21 @@ export class DiagramCanvasService {
     }
 
     this.activeViewId = viewId;
+
+    const snapshot = this.snapshots.get(viewId);
+    if (snapshot) {
+      // Restoring the plain-data snapshot is the only lossless way back to a saved view.
+      this.restoreSnapshot(snapshot);
+      this.store.setActiveView(viewId);
+      this.updateAllConnections();
+      this.refreshTree();
+      this.refreshProperties();
+      this.updateToolbar();
+      this.ensureHistory();
+      this.applyReadOnly(this.readOnly);
+      return;
+    }
+
     canvas.discardActiveObject();
     canvas.clear();
     this.connections = [];
@@ -2721,6 +2797,10 @@ export class DiagramCanvasService {
       }
     }
 
+    // Views rendered lazily from an import have no snapshot until the user switches
+    // away, so capture one now and a save never persists them as empty.
+    this.snapshots.set(viewId, this.captureSnapshot());
+
     this.store.setActiveView(viewId);
     canvas.requestRenderAll();
     this.updateAllConnections();
@@ -2728,18 +2808,105 @@ export class DiagramCanvasService {
     this.refreshProperties();
     this.updateToolbar();
     this.ensureHistory();
+    this.applyReadOnly(this.readOnly);
+  }
+
+  /**
+   * Replaces all local view state with the server copy of a diagram. Works both before
+   * and after the canvas is attached; the first view is rendered in either case.
+   */
+  loadDiagram(diagram: DiagramDto): void {
+    this.views.clear();
+    this.snapshots.clear();
+    this.parsedViews.clear();
+    this.repository.clear();
+    this.history.clear();
+    this.connections = [];
+    this.activeViewId = '';
+
+    const ordered = [...diagram.views].sort((a, b) => a.position - b.position);
+    for (const view of ordered) {
+      this.views.set(view.viewKey, { name: view.name, objects: [], connections: [] });
+      this.snapshots.set(view.viewKey, this.normalizeSnapshot(view));
+    }
+    if (this.views.size === 0) {
+      this.views.set(DEFAULT_VIEW_ID, { name: 'Default View', objects: [], connections: [] });
+      this.snapshots.set(DEFAULT_VIEW_ID, EMPTY_SNAPSHOT);
+    }
+
+    const first = this.views.keys().next().value ?? DEFAULT_VIEW_ID;
+    this.pendingViewId = first;
+
+    if (this.canvas) {
+      this.pendingViewId = null;
+      this.selectView(first);
+      return;
+    }
+
+    this.refreshTree();
+    this.refreshProperties();
+    this.updateToolbar();
+    this.store.canUndo.set(false);
+    this.store.canRedo.set(false);
+  }
+
+  /** Serializes every view into the payload the server persists. */
+  buildViewDrafts(): DiagramViewDto[] {
+    if (this.canvas) {
+      this.serializePendingImports();
+      this.saveCurrentViewState();
+    }
+    return [...this.views.entries()].map(([viewKey, view], index) => ({
+      viewKey,
+      name: view.name,
+      position: index,
+      snapshot: this.snapshots.get(viewKey) ?? EMPTY_SNAPSHOT,
+    }));
+  }
+
+  /**
+   * Imported views are rendered lazily, so walk them once before a save to avoid
+   * persisting empty snapshots for views the user has not opened yet.
+   */
+  private serializePendingImports(): void {
+    const canvas = this.canvas;
+    if (!canvas) return;
+
+    const pending = [...this.views.keys()].filter(
+      (id) => !this.snapshots.has(id) && this.parsedViews.has(id),
+    );
+    if (pending.length === 0) return;
+
+    const current = this.activeViewId;
+    for (const id of pending) {
+      this.selectView(id);
+    }
+    if (current && this.views.has(current)) {
+      this.selectView(current);
+    }
+    this.saveCurrentViewState();
+  }
+
+  private normalizeSnapshot(view: DiagramViewDto): ViewSnapshot {
+    const snapshot = view.snapshot;
+    if (!snapshot || !Array.isArray(snapshot.shapes) || !Array.isArray(snapshot.connections)) {
+      return EMPTY_SNAPSHOT;
+    }
+    return { ...snapshot, selection: snapshot.selection ?? null };
   }
 
   createView(name: string): void {
     const canvas = this.canvas;
-    if (!canvas) return;
+    if (!canvas || this.readOnly) return;
 
     this.saveCurrentViewState();
     const id = `view_${Date.now()}`;
     this.views.set(id, { name: name.trim() || 'New View', objects: [], connections: [] });
+    this.snapshots.set(id, EMPTY_SNAPSHOT);
     this.store.newViewDialogOpen.set(false);
     this.activeViewId = '';
     this.selectView(id);
+    this.store.markDocumentChanged();
   }
 
   private renderParsedView(view: ParsedView): void {
@@ -2797,6 +2964,7 @@ export class DiagramCanvasService {
   }
 
   importFile(file: File): void {
+    if (this.readOnly) return;
     const reader = new FileReader();
 
     reader.onload = () => {
@@ -2805,6 +2973,7 @@ export class DiagramCanvasService {
         this.repository.clear();
         this.parsedViews.clear();
         this.views.clear();
+        this.snapshots.clear();
         this.history.clear();
 
         for (const view of model.views) {
@@ -2814,16 +2983,19 @@ export class DiagramCanvasService {
 
         if (model.views.length === 0) {
           this.views.set(DEFAULT_VIEW_ID, { name: 'Default View', objects: [], connections: [] });
+          this.snapshots.set(DEFAULT_VIEW_ID, EMPTY_SNAPSHOT);
           this.activeViewId = DEFAULT_VIEW_ID;
           this.store.showToast('Parsed successfully, but no visual views found.');
           this.refreshTree();
           this.ensureHistory();
+          this.store.markDocumentChanged();
           return;
         }
 
         this.store.showToast('File loaded successfully.');
         this.activeViewId = '';
         this.selectView(model.firstViewId ?? model.views[0].id);
+        this.store.markDocumentChanged();
       } catch {
         this.store.showToast('Failed to parse the .archimate file. Ensure it is valid XML.', true);
       }
@@ -2847,7 +3019,7 @@ export class DiagramCanvasService {
 
   clearAll(): void {
     const canvas = this.canvas;
-    if (!canvas) return;
+    if (!canvas || this.readOnly) return;
 
     canvas.clear();
     this.connections = [];
@@ -2855,7 +3027,9 @@ export class DiagramCanvasService {
     this.repository.clear();
     this.parsedViews.clear();
     this.views.clear();
+    this.snapshots.clear();
     this.views.set(DEFAULT_VIEW_ID, { name: 'Default View', objects: [], connections: [] });
+    this.snapshots.set(DEFAULT_VIEW_ID, EMPTY_SNAPSHOT);
     this.activeViewId = DEFAULT_VIEW_ID;
 
     this.setupGridPattern();
@@ -2867,6 +3041,7 @@ export class DiagramCanvasService {
     this.updateToolbar();
     this.history.clear();
     this.ensureHistory();
+    this.store.markDocumentChanged();
   }
 }
 

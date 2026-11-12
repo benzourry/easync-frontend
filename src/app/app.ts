@@ -1,38 +1,18 @@
-import { DragDropModule } from '@angular/cdk/drag-drop';
-import { Component, inject } from '@angular/core';
-import { AppHeader } from './components/app-header';
-import { CanvasStage } from './components/canvas-stage';
-import { ClearDialog, EditLabelDialog, NewViewDialog } from './components/dialogs';
-import { ExplorerSidebar } from './components/explorer-sidebar';
-import { PaletteSidebar } from './components/palette-sidebar';
-import { DiagramStore } from './services/diagram-store';
+import { Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
-  imports: [
-    DragDropModule,
-    AppHeader,
-    PaletteSidebar,
-    CanvasStage,
-    ExplorerSidebar,
-    EditLabelDialog,
-    ClearDialog,
-    NewViewDialog,
-  ],
-  templateUrl: './app.html',
+  imports: [RouterOutlet],
+  template: '<router-outlet />',
   styles: [
     `
       :host {
-        display: flex;
-        flex-direction: column;
+        display: block;
         height: 100%;
-        width: 100%;
-        overflow: hidden;
       }
     `,
   ],
 })
-export class App {
-  protected readonly store = inject(DiagramStore);
-}
+export class App {}
 

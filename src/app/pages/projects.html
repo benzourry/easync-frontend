@@ -1,0 +1,190 @@
+<div class="app-page d-flex flex-column">
+  <app-topbar />
+
+  <main class="container-xl py-4 flex-grow-1">
+    <div class="app-page-header d-flex flex-wrap align-items-center">
+      <div class="me-auto">
+        <h1 class="h3 mb-1">Projects</h1>
+        <p class="text-secondary mb-0">Open a project to edit its ArchiMate diagrams.</p>
+      </div>
+      <button type="button" class="btn btn-primary" (click)="openCreate()">New project</button>
+    </div>
+
+    @if (loading()) {
+      <div class="d-flex align-items-center gap-2 text-secondary" role="status">
+        <div class="spinner-border spinner-border-sm" aria-hidden="true"></div>
+        <span>Loading projects…</span>
+      </div>
+    } @else if (loadError(); as message) {
+      <div class="alert alert-danger d-flex flex-wrap align-items-center gap-2" role="alert">
+        <span class="me-auto">{{ message }}</span>
+        <button type="button" class="btn btn-sm btn-outline-danger" (click)="load()">Try again</button>
+      </div>
+    } @else if (projects().length === 0) {
+      <div class="card">
+        <div class="card-body p-4 text-center">
+          <h2 class="h5">No projects yet</h2>
+          <p class="text-secondary">Create your first project to start modelling.</p>
+          <button type="button" class="btn btn-primary" (click)="openCreate()">
+            Create a project
+          </button>
+        </div>
+      </div>
+    } @else {
+      <ul class="row g-3 list-unstyled">
+        @for (project of projects(); track project.id) {
+          <li class="col-12 col-md-6 col-xl-4">
+            <article class="card h-100">
+              <div class="card-body d-flex flex-column gap-2">
+                <div class="d-flex align-items-start gap-2">
+                  <h2 class="h5 mb-0 me-auto">
+                    <a
+                      class="text-decoration-none"
+                      [routerLink]="['/projects', project.id]"
+                      >{{ project.name }}</a
+                    >
+                  </h2>
+                  <span class="badge" [class]="roleClass(project.role)">{{ project.role }}</span>
+                </div>
+
+                <p class="text-secondary small mb-0">
+                  {{ project.description || 'No description.' }}
+                </p>
+
+                <dl class="row row-cols-2 g-0 small text-secondary mb-0">
+                  <dt class="col fw-normal">Diagrams</dt>
+                  <dd class="col-auto mb-0 text-end">{{ project.diagramCount }}</dd>
+                  <dt class="col fw-normal">Members</dt>
+                  <dd class="col-auto mb-0 text-end">{{ project.memberCount }}</dd>
+                  <dt class="col fw-normal">Updated</dt>
+                  <dd class="col-auto mb-0 text-end">{{ project.updatedAt | date: 'mediumDate' }}</dd>
+                </dl>
+              </div>
+
+              <div class="card-footer d-flex flex-wrap gap-2 bg-body">
+                <a class="btn btn-sm btn-primary" [routerLink]="['/projects', project.id]">Open</a>
+                @if (canEdit(project)) {
+                  <button type="button" class="btn btn-sm btn-outline-secondary" (click)="openEdit(project)">
+                    Rename
+                  </button>
+                }
+                @if (project.role === 'OWNER') {
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-danger ms-auto"
+                    (click)="openDelete(project)"
+                  >
+                    Delete
+                  </button>
+                }
+              </div>
+            </article>
+          </li>
+        }
+      </ul>
+    }
+  </main>
+</div>
+
+<ng-template #createTpl let-modal>
+  <div class="modal-header">
+    <h2 class="modal-title h5" id="create-project-title">New project</h2>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
+  </div>
+  <div class="modal-body">
+    @if (createError(); as message) {
+      <div class="alert alert-danger py-2 small" role="alert">{{ message }}</div>
+    }
+    <div class="mb-3">
+      <label class="form-label" for="project-name">Name</label>
+      <input
+        id="project-name"
+        type="text"
+        class="form-control"
+        [value]="createName()"
+        (input)="onCreateName($event)"
+      />
+    </div>
+    <div class="mb-0">
+      <label class="form-label" for="project-description">Description</label>
+      <textarea
+        id="project-description"
+        class="form-control"
+        rows="3"
+        [value]="createDescription()"
+        (input)="onCreateDescription($event)"
+      ></textarea>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" (click)="modal.dismiss()">Cancel</button>
+    <button type="button" class="btn btn-primary" [disabled]="createBusy()" (click)="submitCreate(modal)">
+      {{ createBusy() ? 'Creating…' : 'Create project' }}
+    </button>
+  </div>
+</ng-template>
+
+<ng-template #editTpl let-modal>
+  <div class="modal-header">
+    <h2 class="modal-title h5" id="edit-project-title">Rename project</h2>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
+  </div>
+  <div class="modal-body">
+    @if (editError(); as message) {
+      <div class="alert alert-danger py-2 small" role="alert">{{ message }}</div>
+    }
+    <div class="mb-3">
+      <label class="form-label" for="edit-project-name">Name</label>
+      <input
+        id="edit-project-name"
+        type="text"
+        class="form-control"
+        [value]="editName()"
+        (input)="onEditName($event)"
+      />
+    </div>
+    <div class="mb-0">
+      <label class="form-label" for="edit-project-description">Description</label>
+      <textarea
+        id="edit-project-description"
+        class="form-control"
+        rows="3"
+        [value]="editDescription()"
+        (input)="onEditDescription($event)"
+      ></textarea>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" (click)="modal.dismiss()">Cancel</button>
+    <button type="button" class="btn btn-primary" [disabled]="editBusy()" (click)="submitEdit(modal)">
+      {{ editBusy() ? 'Saving…' : 'Save changes' }}
+    </button>
+  </div>
+</ng-template>
+
+<ng-template #deleteTpl let-modal>
+  <div class="modal-header">
+    <h2 class="modal-title h5 text-danger" id="delete-project-title">Delete project</h2>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
+  </div>
+  <div class="modal-body">
+    @if (deleteError(); as message) {
+      <div class="alert alert-danger py-2 small" role="alert">{{ message }}</div>
+    }
+    <p class="mb-0">
+      Deleting <strong>{{ deleting()?.name }}</strong> removes all of its diagrams, views and
+      revisions for every member. This cannot be undone.
+    </p>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" (click)="modal.dismiss()">Cancel</button>
+    <button
+      type="button"
+      class="btn btn-danger"
+      [disabled]="deleteBusy()"
+      (click)="submitDelete(modal)"
+    >
+      {{ deleteBusy() ? 'Deleting…' : 'Delete project' }}
+    </button>
+  </div>
+</ng-template>

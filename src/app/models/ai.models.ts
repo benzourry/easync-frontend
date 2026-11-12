@@ -51,15 +51,31 @@ export interface AiPlan {
   ops: AiOp[];
 }
 
-/** Any OpenAI-compatible chat completion endpoint. */
-export interface AiProviderSettings {
+/**
+ * The assistant options stored on the server for the signed-in user. The API key is
+ * write-only: the server reports whether one is stored but never returns it.
+ */
+export interface AiSettings {
   baseUrl: string;
   model: string;
-  apiKey: string;
+  hasApiKey: boolean;
 }
 
-export const DEFAULT_AI_SETTINGS: AiProviderSettings = {
-  baseUrl: 'https://api.openai.com/v1',
-  model: 'gpt-4o-mini',
-  apiKey: '',
-};
+/** The settings the user may change. Omit or blank `apiKey` to keep the stored key. */
+export interface AiSettingsPatch {
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  clearApiKey?: boolean;
+}
+
+/**
+ * One assistant request. The prompt is assembled on the server, so the browser only
+ * sends the instruction, the TOGAF position and the canvas description.
+ */
+export interface AiPlanRequest {
+  prompt: string;
+  phase: TogafPhaseId;
+  domain: TogafDomainId;
+  diagram: string;
+}

@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, afterNextRender, inject, viewChild } from '@angular/core';
+﻿import { Component, DestroyRef, ElementRef, afterNextRender, inject, viewChild } from '@angular/core';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { DiagramCanvasService, type DragPayload } from '../services/diagram-canvas.service';
 import { DiagramStore } from '../services/diagram-store';
@@ -49,7 +49,7 @@ import { clientPointFromEvent } from '../utils/drag-point';
         <div class="btn-group btn-group-sm" role="group" aria-label="Actions for the selected object">
           <button
             type="button"
-            class="btn btn-light d-flex align-items-center justify-content-center"
+            class="btn btn-light app-icon-btn"
             title="Bring to Front"
             aria-label="Bring to front"
             (click)="diagram.bringToFront()"
@@ -58,7 +58,7 @@ import { clientPointFromEvent } from '../utils/drag-point';
           </button>
           <button
             type="button"
-            class="btn btn-light d-flex align-items-center justify-content-center"
+            class="btn btn-light app-icon-btn"
             title="Send to Back"
             aria-label="Send to back"
             (click)="diagram.sendToBack()"
@@ -71,7 +71,7 @@ import { clientPointFromEvent } from '../utils/drag-point';
 
         <button
           type="button"
-          class="btn btn-sm btn-light text-primary d-flex align-items-center justify-content-center"
+          class="btn btn-sm btn-light text-primary app-icon-btn"
           title="Edit Properties"
           aria-label="Edit properties"
           (click)="diagram.editActiveObject()"
@@ -83,7 +83,7 @@ import { clientPointFromEvent } from '../utils/drag-point';
 
         <button
           type="button"
-          class="btn btn-sm btn-light text-danger d-flex align-items-center justify-content-center"
+          class="btn btn-sm btn-light text-danger app-icon-btn"
           title="Delete"
           aria-label="Delete selected object"
           (click)="diagram.deleteActive()"

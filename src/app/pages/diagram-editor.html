@@ -1,0 +1,64 @@
+@if (persistence.error(); as message) {
+  <div class="app-page d-flex align-items-center justify-content-center p-4">
+    <div class="card text-center" style="max-width: 28rem">
+      <div class="card-body p-4">
+        <h1 class="h4">Cannot open this diagram</h1>
+        <p class="text-secondary">{{ message }}</p>
+        <a class="btn btn-primary" routerLink="/projects">Back to projects</a>
+      </div>
+    </div>
+  </div>
+} @else if (persistence.loading()) {
+  <div
+    class="app-page d-flex flex-column align-items-center justify-content-center gap-3"
+    role="status"
+  >
+    <div class="spinner-border text-primary" aria-hidden="true"></div>
+    <p class="mb-0 text-secondary">Loading diagram…</p>
+  </div>
+} @else {
+  <div class="app-shell d-flex flex-column">
+    <app-header />
+
+    @if (persistence.saveFailed()) {
+      <div class="alert alert-warning rounded-0 border-start-0 border-end-0 mb-0 d-flex flex-wrap align-items-center gap-2 px-3 py-2" role="alert">
+        <span class="me-auto">
+          {{
+            persistence.conflictVersion() !== null
+              ? 'Someone else saved this diagram first. Your latest changes are not saved yet.'
+              : 'The last save failed. Check your connection and try again.'
+          }}
+        </span>
+        @if (persistence.conflictVersion() !== null) {
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="persistence.reloadLatest()">
+            Reload latest
+          </button>
+          <button type="button" class="btn btn-sm btn-warning" (click)="persistence.overwriteConflict()">
+            Overwrite
+          </button>
+        }
+        <button type="button" class="btn btn-sm btn-primary" (click)="persistence.saveNow()">
+          Retry save
+        </button>
+      </div>
+    }
+
+    <div class="app-body d-flex flex-grow-1 position-relative overflow-hidden" cdkDropListGroup>
+      <div
+        class="app-backdrop d-lg-none"
+        [class.show]="store.paletteOpen() || store.explorerOpen()"
+        aria-hidden="true"
+        (click)="store.closeSidebars()"
+      ></div>
+
+      <app-palette-sidebar />
+      <app-canvas-stage />
+      <app-explorer-sidebar />
+    </div>
+  </div>
+
+  <app-edit-label-dialog />
+  <app-clear-dialog />
+  <app-new-view-dialog />
+  <app-revisions-dialog />
+}
