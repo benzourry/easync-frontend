@@ -1531,7 +1531,7 @@ export class DiagramCanvasService {
 
     const active = document.activeElement as HTMLElement | null;
     const tag = active?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable) return;
 
     if (event.code === 'Space') {
       this.isSpaceDown = true;
@@ -2158,19 +2158,32 @@ export class DiagramCanvasService {
     const active = canvas?.getActiveObject();
     if (!canvas || !active) return;
 
-    const bendpoint = active as BendpointHandle;
-    if (bendpoint.isBendpoint) {
-      this.deleteBendpoint(bendpoint);
-      return;
+    const targets =
+      active.type === 'activeSelection'
+        ? [...((active as fabric.ActiveSelection).getObjects() as fabric.Object[])]
+        : [active];
+
+    // Drop the selection before removing members: fabric keeps transforming a live
+    // active selection and breaks when one of its objects disappears.
+    canvas.discardActiveObject();
+
+    for (const target of targets) {
+      const bendpoint = target as BendpointHandle;
+      if (bendpoint.isBendpoint) {
+        this.deleteBendpoint(bendpoint);
+        continue;
+      }
+
+      const connection = target as ConnectionLine;
+      if (connection.isConnection) {
+        this.removeConnection(connection);
+        continue;
+      }
+
+      const shape = target as ArchimateShape;
+      if (shape.isShape) this.removeShape(shape);
     }
 
-    const connection = active as ConnectionLine;
-    if (connection.isConnection) this.removeConnection(connection);
-
-    const shape = active as ArchimateShape;
-    if (shape.isShape) this.removeShape(shape);
-
-    canvas.discardActiveObject();
     canvas.requestRenderAll();
     this.clearBendpoints();
     this.syncSelection();
