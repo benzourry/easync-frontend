@@ -30,6 +30,10 @@ declare const fabric: typeof import('fabric').fabric;
 
 const GRID_SIZE = 15;
 const PASTE_OFFSET = 20;
+const SHAPE_STROKE_WIDTH = 1;
+const GROUP_TAB_HEIGHT = 24;
+const MIN_SHAPE_WIDTH = 60;
+const MIN_SHAPE_HEIGHT = 40;
 const DEFAULT_VIEW_ID = 'view_default';
 const DASHED_TYPES: RelationshipType[] = ['realization', 'access', 'influence', 'flow'];
 const GROUP_SHAPE_ICONS = ['⊞', '📁'];
@@ -361,7 +365,7 @@ export class DiagramCanvasService {
     const groupItems: fabric.Object[] = [];
 
     if (isGroupShape) {
-      const tabHeight = 24;
+      const tabHeight = GROUP_TAB_HEIGHT;
       const tabWidth = Math.min(80, width * 0.4);
       groupItems.push(
         new fabric.Rect({
@@ -369,7 +373,7 @@ export class DiagramCanvasService {
           height: tabHeight,
           fill: isDark ? '#1e293b' : options.color,
           stroke: isDark ? '#475569' : '#64748b',
-          strokeWidth: 1,
+          strokeWidth: SHAPE_STROKE_WIDTH,
           rx: 3,
           ry: 3,
           left: 0,
@@ -406,29 +410,31 @@ export class DiagramCanvasService {
         }),
       );
     } else {
+      const label = new fabric.Textbox(options.label, {
+        width: width - 20,
+        left: 10,
+        fontSize: 12,
+        fontWeight: '500',
+        textAlign: 'center',
+        fill: '#1e293b',
+        splitByGrapheme: false,
+      });
+      label.set({ top: (height - (label.height ?? 0)) / 2 });
+
       groupItems.push(
         new fabric.Rect({
           width,
           height,
           fill: options.color,
           stroke: isDark ? '#475569' : '#94a3b8',
-          strokeWidth: 1,
+          strokeWidth: SHAPE_STROKE_WIDTH,
           rx: 4,
           ry: 4,
           left: 0,
           top: 0,
           shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.15)', blur: 4, offsetX: 0, offsetY: 2 }),
         }),
-        new fabric.Textbox(options.label, {
-          width: width - 20,
-          left: 10,
-          top: height / 2 - 10,
-          fontSize: 12,
-          fontWeight: '500',
-          textAlign: 'center',
-          fill: '#1e293b',
-          splitByGrapheme: false,
-        }),
+        label,
         new fabric.Text(options.icon, {
           fontSize: 14,
           left: width - 24,
@@ -883,7 +889,7 @@ export class DiagramCanvasService {
 
     canvas.on('selection:created', () => this.syncSelection());
     canvas.on('selection:updated', () => this.syncSelection());
-    canvas.on('selection:cleared', () => this.syncSelection());
+    canvas.on('selection:cleared', () => this.onSelectionCleared());
     canvas.on('mouse:down', (opt) => this.onMouseDown(opt));
     canvas.on('mouse:move', (opt) => this.onMouseMove(opt));
     canvas.on('mouse:up', (opt) => this.onMouseUp(opt));
@@ -1087,7 +1093,10 @@ export class DiagramCanvasService {
 
   private onObjectModified(opt: fabric.IEvent<Event>): void {
     const shape = opt.target as ArchimateShape | undefined;
-    if (shape?.isShape) this.handleAutoGroup(shape);
+    if (shape?.isShape) {
+      this.normalizeShapeScale(shape);
+      this.handleAutoGroup(shape);
+    }
     this.updateAllConnections();
     this.syncSelection();
   }
@@ -1156,23 +1165,102 @@ export class DiagramCanvasService {
     const shape = opt.target as ArchimateShape | undefined;
     if (!shape?.isShape) return;
 
+    this.layoutShape(shape, shape.scaleX ?? 1, shape.scaleY ?? 1);
+    this.updateAllConnections();
+    this.updateToolbar();
+  }
+
+  /**
+   * Folds a group's scale into its children so they keep their own stroke weight
+   * and un-stretched text, then keeps the visual centre where it was.
+   */
+  private layoutShape(shape: ArchimateShape, scaleX: number, scaleY: number): void {
     const children = shape.getObjects();
     const rects = children.filter((child) => child.type === 'rect') as fabric.Rect[];
-    const tab = rects.find((rect) => rect.height === 24);
+    const tab = rects.find((rect) => rect.height === GROUP_TAB_HEIGHT);
     const body = rects.find((rect) => rect !== tab);
-    const width = (shape.width ?? 0) * (shape.scaleX ?? 1);
-    const height = (shape.height ?? 0) * (shape.scaleY ?? 1);
+    const label = children.find((child) => child.type === 'textbox') as fabric.Textbox | undefined;
+    const icon = children.find((child) => child.type === 'text') as fabric.Text | undefined;
+    const stroke = body?.strokeWidth ?? SHAPE_STROKE_WIDTH;
 
-    if (tab) tab.set({ width: Math.min(80, width * 0.4) });
-    if (body) body.set({ width, height: Math.max(5, height - 24 + 1) });
+    // The group box includes half a stroke of bleed on each side, so the content
+    // box is the box minus one stroke; keeping that mapping exact stops the size
+    // from creeping by a pixel on every resize.
+    const boundsWidth = Math.max(MIN_SHAPE_WIDTH, (shape.width ?? 0) * scaleX);
+    const boundsHeight = Math.max(MIN_SHAPE_HEIGHT, (shape.height ?? 0) * scaleY);
+    const width = Math.max(MIN_SHAPE_WIDTH - stroke, boundsWidth - stroke);
+    const height = Math.max(MIN_SHAPE_HEIGHT - stroke, boundsHeight - stroke);
+    const center = shape.getCenterPoint();
 
-    for (const child of children) {
-      if (child.type === 'textbox') child.set({ scaleX: 1, scaleY: 1, width: width - 20 });
-      if (child.type === 'text') child.set({ left: width - 24, scaleX: 1, scaleY: 1 });
+    // Children are positioned around the group's centre, so mirror the layout
+    // used when the shape was built to keep everything anchored.
+    if (tab && body) {
+      tab.set({
+        width: Math.min(80, width * 0.4),
+        height: GROUP_TAB_HEIGHT,
+        left: -width / 2,
+        top: -height / 2,
+      });
+      body.set({
+        width,
+        height: Math.max(GROUP_TAB_HEIGHT - 1, height - GROUP_TAB_HEIGHT + 1),
+        left: -width / 2,
+        top: -height / 2 + GROUP_TAB_HEIGHT - 1,
+      });
+    } else {
+      body?.set({ width, height, left: -width / 2, top: -height / 2 });
     }
 
-    shape.set({ width, height, scaleX: 1, scaleY: 1 });
-    shape.addWithUpdate();
+    if (label) {
+      label.set({ width: Math.max(20, width - 20), scaleX: 1, scaleY: 1 });
+      label.set(
+        tab
+          ? { left: -width / 2 + 10, top: -height / 2 + 4 }
+          : { left: -width / 2 + 10, top: -(label.height ?? 0) / 2 },
+      );
+    }
+
+    icon?.set({
+      left: width / 2 - 24,
+      top: -height / 2 + (tab ? 5 : 6),
+      scaleX: 1,
+      scaleY: 1,
+    });
+
+    shape.set({
+      width: width + stroke,
+      height: height + stroke,
+      scaleX: 1,
+      scaleY: 1,
+    });
+    shape.setPositionByOrigin(center, 'center', 'center');
+    shape.setCoords();
+  }
+
+  /** True when the shape had a leftover scale that needed folding into its size. */
+  private normalizeShapeScale(shape: ArchimateShape): boolean {
+    const scaleX = shape.scaleX ?? 1;
+    const scaleY = shape.scaleY ?? 1;
+    if (Math.abs(scaleX - 1) < 0.001 && Math.abs(scaleY - 1) < 0.001) return false;
+
+    this.layoutShape(shape, scaleX, scaleY);
+    return true;
+  }
+
+  private onSelectionCleared(): void {
+    const canvas = this.canvas;
+    let changed = false;
+
+    // Resizing a multi-selection hands its scale down to the shapes when the
+    // selection is released, which would leave stretched text behind.
+    for (const obj of canvas?.getObjects() ?? []) {
+      const shape = obj as ArchimateShape;
+      if (!shape.isShape) continue;
+      changed = this.normalizeShapeScale(shape) || changed;
+    }
+
+    if (changed) this.updateAllConnections();
+    this.syncSelection();
   }
 
   private onDoubleClick(opt: fabric.IEvent<Event>): void {
