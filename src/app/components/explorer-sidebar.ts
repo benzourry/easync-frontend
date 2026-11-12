@@ -1,5 +1,6 @@
 import { DragDropModule } from '@angular/cdk/drag-drop';
 import { Component, inject } from '@angular/core';
+import { NgbNavModule } from '@ng-bootstrap/ng-bootstrap/nav';
 import type { RepositoryLayer } from '../models/diagram.models';
 import { DiagramCanvasService, type DragPayload } from '../services/diagram-canvas.service';
 import { DiagramStore } from '../services/diagram-store';
@@ -9,7 +10,7 @@ type RepositoryItem = RepositoryLayer['items'][number];
 
 @Component({
   selector: 'app-explorer-sidebar',
-  imports: [PropertiesPanel, DragDropModule],
+  imports: [PropertiesPanel, DragDropModule, NgbNavModule],
   template: `
     <aside
       id="explorer-sidebar"
@@ -18,34 +19,120 @@ type RepositoryItem = RepositoryLayer['items'][number];
       aria-label="Explorer and properties"
     >
       <div class="d-flex align-items-stretch border-bottom bg-body-tertiary flex-shrink-0">
-        <ul class="nav nav-tabs border-0 flex-grow-1" role="tablist">
-          <li class="nav-item flex-fill" role="presentation">
-            <button
-              id="explorer-tab"
-              type="button"
-              role="tab"
-              class="nav-link w-100 app-tab"
-              aria-controls="explorer-panel"
-              [class.active]="store.sidebarTab() === 'explorer'"
-              [attr.aria-selected]="store.sidebarTab() === 'explorer'"
-              (click)="store.setSidebarTab('explorer')"
-            >
-              Explorer
-            </button>
+        <ul
+          #nav="ngbNav"
+          ngbNav
+          class="nav-tabs border-0 flex-grow-1"
+          [activeId]="store.sidebarTab()"
+          (activeIdChange)="setSidebarTab($event)"
+          [destroyOnHide]="false"
+        >
+          <li [ngbNavItem]="'explorer'" domId="explorer" class="flex-fill">
+            <button type="button" ngbNavLink class="w-100 app-tab">Explorer</button>
+            <ng-template ngbNavContent>
+              <div
+                class="h-100 overflow-auto app-scroll p-2"
+                cdkDropList
+                cdkDropListSortingDisabled
+                cdkDropListAutoScrollDisabled
+              >
+                <details open class="mb-1">
+                  <summary class="app-tree-summary">Diagrams (Views)</summary>
+                  <div class="list-group list-group-flush ps-2">
+                    @for (view of store.views(); track view.id) {
+                      <button type="button" [class]="rowClass(view.isActive)" (click)="diagram.selectView(view.id)">
+                        <span class="flex-shrink-0" aria-hidden="true">🖼️</span>
+                        <span class="text-truncate">{{ view.name }}</span>
+                      </button>
+                    }
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-success border-dashed w-100 mt-1"
+                      (click)="store.newViewDialogOpen.set(true)"
+                    >
+                      + New View
+                    </button>
+                  </div>
+                </details>
+
+                @if (store.repository().length > 0) {
+                  <details open class="mb-1">
+                    <summary class="app-tree-summary">Global Repository</summary>
+                    <div class="ps-2">
+                      @for (layer of store.repository(); track layer.layer) {
+                        <details open>
+                          <summary class="app-tree-subsummary">{{ layer.layer }}</summary>
+                          <div class="ps-2">
+                            @for (item of layer.items; track item.id) {
+                              <div
+                                cdkDrag
+                                cdkDragPreviewClass="app-drag-preview"
+                                [cdkDragData]="payload(item, layer)"
+                                class="app-drag-row d-flex align-items-center gap-2 px-2 py-1 rounded"
+                                [title]="item.label"
+                              >
+                                <span class="flex-shrink-0" aria-hidden="true">{{ item.icon }}</span>
+                                <span class="text-truncate">{{ item.label }}</span>
+                              </div>
+                            }
+                          </div>
+                        </details>
+                      }
+                    </div>
+                  </details>
+                }
+
+                @for (group of store.layers(); track group.layer) {
+                  <details open class="mb-1">
+                    <summary class="app-tree-summary">{{ group.layer }} (Current)</summary>
+                    <div class="list-group list-group-flush ps-2">
+                      @for (shape of group.shapes; track shape.id) {
+                        <button type="button" [class]="rowClass(shape.isActive)" (click)="diagram.selectByKey(shape.id)">
+                          <span class="flex-shrink-0" aria-hidden="true">{{ shape.icon }}</span>
+                          <span class="text-truncate">{{ shape.label }}</span>
+                        </button>
+                      }
+                    </div>
+                  </details>
+                }
+
+                @if (store.hasRelationships()) {
+                  <details open class="mb-1">
+                    <summary class="app-tree-summary">Relationships</summary>
+                    <div class="list-group list-group-flush ps-2">
+                      @for (relationship of store.relationships(); track relationship.key) {
+                        <button
+                          type="button"
+                          [class]="rowClass(relationship.isActive)"
+                          [title]="relationship.sourceName + ' to ' + relationship.targetName"
+                          (click)="diagram.selectByKey(relationship.key)"
+                        >
+                          <span class="badge bg-body-secondary text-body-secondary text-uppercase flex-shrink-0">{{
+                            relationship.type
+                          }}</span>
+                          <span class="text-truncate"
+                            >{{ relationship.sourceName }} → {{ relationship.targetName }}</span
+                          >
+                        </button>
+                      }
+                    </div>
+                  </details>
+                }
+
+                @if (store.isEmptyModel()) {
+                  <p class="small text-body-secondary px-2 py-1 mb-0">Model is empty</p>
+                }
+              </div>
+            </ng-template>
           </li>
-          <li class="nav-item flex-fill" role="presentation">
-            <button
-              id="properties-tab"
-              type="button"
-              role="tab"
-              class="nav-link w-100 app-tab"
-              aria-controls="properties-panel"
-              [class.active]="store.sidebarTab() === 'properties'"
-              [attr.aria-selected]="store.sidebarTab() === 'properties'"
-              (click)="store.setSidebarTab('properties')"
-            >
-              Properties
-            </button>
+
+          <li [ngbNavItem]="'properties'" domId="properties" class="flex-fill">
+            <button type="button" ngbNavLink class="w-100 app-tab">Properties</button>
+            <ng-template ngbNavContent>
+              <div class="h-100 overflow-auto app-scroll p-3">
+                <app-properties-panel />
+              </div>
+            </ng-template>
           </li>
         </ul>
         <button
@@ -56,121 +143,17 @@ type RepositoryItem = RepositoryLayer['items'][number];
         ></button>
       </div>
 
-      <div class="flex-grow-1 position-relative overflow-hidden bg-body">
-        <div
-          id="explorer-panel"
-          role="tabpanel"
-          aria-labelledby="explorer-tab"
-          class="position-absolute top-0 start-0 w-100 h-100 overflow-auto app-scroll p-2"
-          [class.d-none]="store.sidebarTab() !== 'explorer'"
-          cdkDropList
-          cdkDropListSortingDisabled
-          cdkDropListAutoScrollDisabled
-        >
-          <details open class="mb-1">
-            <summary class="app-tree-summary">Diagrams (Views)</summary>
-            <div class="list-group list-group-flush ps-2">
-              @for (view of store.views(); track view.id) {
-                <button type="button" [class]="rowClass(view.isActive)" (click)="diagram.selectView(view.id)">
-                  <span class="flex-shrink-0" aria-hidden="true">🖼️</span>
-                  <span class="text-truncate">{{ view.name }}</span>
-                </button>
-              }
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-success border-dashed w-100 mt-1"
-                (click)="store.newViewDialogOpen.set(true)"
-              >
-                + New View
-              </button>
-            </div>
-          </details>
-
-          @if (store.repository().length > 0) {
-            <details open class="mb-1">
-              <summary class="app-tree-summary">Global Repository</summary>
-              <div class="ps-2">
-                @for (layer of store.repository(); track layer.layer) {
-                  <details open>
-                    <summary class="app-tree-subsummary">{{ layer.layer }}</summary>
-                    <div class="ps-2">
-                      @for (item of layer.items; track item.id) {
-                        <div
-                          cdkDrag
-                          cdkDragPreviewClass="app-drag-preview"
-                          [cdkDragData]="payload(item, layer)"
-                          class="app-drag-row d-flex align-items-center gap-2 px-2 py-1 rounded"
-                          [title]="item.label"
-                        >
-                          <span class="flex-shrink-0" aria-hidden="true">{{ item.icon }}</span>
-                          <span class="text-truncate">{{ item.label }}</span>
-                        </div>
-                      }
-                    </div>
-                  </details>
-                }
-              </div>
-            </details>
-          }
-
-          @for (group of store.layers(); track group.layer) {
-            <details open class="mb-1">
-              <summary class="app-tree-summary">{{ group.layer }} (Current)</summary>
-              <div class="list-group list-group-flush ps-2">
-                @for (shape of group.shapes; track shape.id) {
-                  <button type="button" [class]="rowClass(shape.isActive)" (click)="diagram.selectByKey(shape.id)">
-                    <span class="flex-shrink-0" aria-hidden="true">{{ shape.icon }}</span>
-                    <span class="text-truncate">{{ shape.label }}</span>
-                  </button>
-                }
-              </div>
-            </details>
-          }
-
-          @if (store.hasRelationships()) {
-            <details open class="mb-1">
-              <summary class="app-tree-summary">Relationships</summary>
-              <div class="list-group list-group-flush ps-2">
-                @for (relationship of store.relationships(); track relationship.key) {
-                  <button
-                    type="button"
-                    [class]="rowClass(relationship.isActive)"
-                    [title]="relationship.sourceName + ' to ' + relationship.targetName"
-                    (click)="diagram.selectByKey(relationship.key)"
-                  >
-                    <span class="badge bg-body-secondary text-body-secondary text-uppercase flex-shrink-0">{{
-                      relationship.type
-                    }}</span>
-                    <span class="text-truncate"
-                      >{{ relationship.sourceName }} → {{ relationship.targetName }}</span
-                    >
-                  </button>
-                }
-              </div>
-            </details>
-          }
-
-          @if (store.isEmptyModel()) {
-            <p class="small text-body-secondary px-2 py-1 mb-0">Model is empty</p>
-          }
-        </div>
-
-        <div
-          id="properties-panel"
-          role="tabpanel"
-          aria-labelledby="properties-tab"
-          class="position-absolute top-0 start-0 w-100 h-100 overflow-auto app-scroll p-3"
-          [class.d-none]="store.sidebarTab() !== 'properties'"
-        >
-          <app-properties-panel />
-        </div>
-      </div>
+      <div class="flex-grow-1 overflow-hidden bg-body" [ngbNavOutlet]="nav"></div>
     </aside>
   `,
 })
 export class ExplorerSidebar {
   protected readonly store = inject(DiagramStore);
   protected readonly diagram = inject(DiagramCanvasService);
+
+  protected setSidebarTab(id: string | number): void {
+    if (id === 'explorer' || id === 'properties') this.store.setSidebarTab(id);
+  }
 
   protected rowClass(isActive: boolean): string {
     const base =

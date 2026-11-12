@@ -57,6 +57,16 @@ app-explorer-sidebar {
   min-height: 0;
 }
 
+/* ngbNav outlet panes must fill the sidebar body instead of collapsing to content height. */
+.app-sidebar > .tab-content {
+  min-height: 0;
+}
+
+.app-sidebar > .tab-content > .tab-pane {
+  height: 100%;
+  overflow: hidden;
+}
+
 .app-backdrop {
   position: fixed;
   inset: 0;
