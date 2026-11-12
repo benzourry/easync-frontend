@@ -108,8 +108,13 @@
                       @if (isCurrentUser(member)) {
                         <span class="text-secondary fw-normal small">(you)</span>
                       }
+                      @if (member.pending) {
+                        <span class="badge text-bg-secondary fw-normal">Not signed in yet</span>
+                      }
                     </p>
-                    <p class="mb-0 small text-secondary">{{ member.email }}</p>
+                    @if (!member.pending) {
+                      <p class="mb-0 small text-secondary">{{ member.email }}</p>
+                    }
                   </div>
 
                   @if (isOwner() && member.role !== 'OWNER') {
@@ -166,7 +171,9 @@
               <div class="card-footer bg-body">
                 <h3 class="h6">Invite a member</h3>
                 <p class="small text-secondary">
-                  The person must have signed in to EAsync at least once.
+                  Use the email address they sign in with. They can be invited before their first
+                  sign-in; until then they are listed by email and their details are filled in
+                  automatically the first time they sign in.
                 </p>
                 <form class="row g-2 align-items-end" (submit)="$event.preventDefault(); addMember()">
                   <div class="col-12 col-sm">

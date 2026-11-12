@@ -45,6 +45,8 @@ export interface MemberDto {
   displayName: string;
   avatarUrl: string | null;
   role: ProjectRole;
+  /** True while the member is only an email invitation and has never signed in. */
+  pending: boolean;
   joinedAt: string;
 }
 

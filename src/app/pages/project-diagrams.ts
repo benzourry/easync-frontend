@@ -166,7 +166,7 @@ export class ProjectDiagramsPage implements OnInit {
   protected addMember(): void {
     const email = this.inviteEmail().trim();
     if (!email) {
-      this.memberError.set('Enter the email address of an existing account.');
+      this.memberError.set('Enter the email address of the person you want to invite.');
       return;
     }
     this.memberBusy.set(true);
