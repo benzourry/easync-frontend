@@ -122,6 +122,14 @@ import { DiagramStore } from '../services/diagram-store';
       </div>
     </main>
   `,
+  styles: `
+    :host {
+      display: block;
+      flex: 1 1 0%;
+      min-width: 0;
+      position: relative;
+    }
+  `,
 })
 export class CanvasStage {
   protected readonly store = inject(DiagramStore);

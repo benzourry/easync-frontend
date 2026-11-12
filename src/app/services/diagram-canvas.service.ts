@@ -475,18 +475,21 @@ export class DiagramCanvasService {
     const dashed = DASHED_TYPES.includes(type);
 
     const line = new fabric.Path('M 0 0 L 0 0', {
-      fill: '',
+      fill: 'transparent',
       stroke: lineColor,
       strokeWidth: 2,
       strokeDashArray: dashed ? [6, 4] : undefined,
       selectable: true,
       evented: true,
       objectCaching: false,
+      lockMovementX: true,
+      lockMovementY: true,
       perPixelTargetFind: true,
       targetFindTolerance: 4,
       padding: 4,
       hasControls: false,
       borderColor: '#ef4444',
+      hoverCursor: 'pointer',
     } as unknown as fabric.IPathOptions) as ConnectionLine;
 
     line.isConnection = true;
@@ -526,7 +529,6 @@ export class DiagramCanvasService {
     color: string,
     isDark: boolean,
   ): fabric.Object | null {
-    const background = isDark ? '#1e293b' : '#ffffff';
     const common = {
       originX: 'center',
       originY: 'center',
@@ -537,29 +539,28 @@ export class DiagramCanvasService {
       objectCaching: false,
     } as const;
 
-    if (type === 'composition' || type === 'aggregation') {
-      const points = [
-        { x: 0, y: -8 },
-        { x: 6, y: 0 },
-        { x: 0, y: 8 },
-        { x: -6, y: 0 },
-      ];
-      return new fabric.Polygon(points, {
+    const diamond = [
+      { x: 0, y: -8 },
+      { x: 6, y: 0 },
+      { x: 0, y: 8 },
+      { x: -6, y: 0 },
+    ];
+
+    if (type === 'composition') {
+      return new fabric.Polygon(diamond, { ...common, fill: color });
+    }
+
+    if (type === 'aggregation') {
+      return new fabric.Polygon(diamond, {
         ...common,
-        fill: type === 'composition' ? color : background,
+        fill: isDark ? '#0f172a' : '#ffffff',
         stroke: color,
         strokeWidth: 1.5,
       });
     }
 
     if (type === 'assignment') {
-      return new fabric.Circle({
-        ...common,
-        radius: 4,
-        fill: background,
-        stroke: color,
-        strokeWidth: 1.5,
-      });
+      return new fabric.Circle({ ...common, radius: 4, fill: color });
     }
 
     return null;
@@ -570,7 +571,6 @@ export class DiagramCanvasService {
     color: string,
     isDark: boolean,
   ): fabric.Object | null {
-    const background = isDark ? '#1e293b' : '#ffffff';
     const common = {
       originX: 'center',
       originY: 'center',
@@ -582,35 +582,28 @@ export class DiagramCanvasService {
     } as const;
 
     if (type === 'triggering' || type === 'flow') {
-      return new fabric.Polygon(
-        [
-          { x: 7, y: 0 },
-          { x: -7, y: 6 },
-          { x: -7, y: -6 },
-        ],
-        { ...common, fill: color, stroke: color, strokeWidth: 1 },
-      );
+      return new fabric.Triangle({ ...common, width: 12, height: 14, fill: color });
     }
 
     if (type === 'realization' || type === 'specialization') {
-      return new fabric.Polygon(
-        [
-          { x: 8, y: 0 },
-          { x: -8, y: 8 },
-          { x: -8, y: -8 },
-        ],
-        { ...common, fill: background, stroke: color, strokeWidth: 1.5 },
-      );
+      return new fabric.Triangle({
+        ...common,
+        width: 14,
+        height: 16,
+        fill: isDark ? '#0f172a' : '#ffffff',
+        stroke: color,
+        strokeWidth: 1.5,
+      });
     }
 
     if (type === 'serving' || type === 'access' || type === 'influence') {
       return new fabric.Polyline(
         [
-          { x: -6, y: -6 },
-          { x: 0, y: 0 },
           { x: -6, y: 6 },
+          { x: 0, y: 0 },
+          { x: 6, y: 6 },
         ],
-        { ...common, fill: '', stroke: color, strokeWidth: 2 },
+        { ...common, fill: '', stroke: color, strokeWidth: 1.5 },
       );
     }
 
@@ -619,33 +612,12 @@ export class DiagramCanvasService {
 
   // --- Routing -------------------------------------------------------------
 
-  private sourceTrim(type: RelationshipType): number {
-    if (type === 'composition' || type === 'aggregation') return 16;
-    if (type === 'assignment') return 8;
-    return 0;
-  }
-
-  private targetTrim(type: RelationshipType): number {
-    if (type === 'realization' || type === 'specialization') return 14;
-    if (type === 'triggering' || type === 'flow') return 7;
-    if (type === 'serving' || type === 'access' || type === 'influence') return 3;
-    return 0;
-  }
-
-  private sourceDecorationOffset(type: RelationshipType): number {
-    if (type === 'composition' || type === 'aggregation') return 8;
-    if (type === 'assignment') return 4;
-    return 0;
-  }
-
-  private targetDecorationOffset(type: RelationshipType): number {
-    if (type === 'realization' || type === 'specialization') return 8;
-    if (type === 'triggering' || type === 'flow') return 7;
-    if (type === 'serving' || type === 'access' || type === 'influence') return 3;
-    return 0;
-  }
-
-  private calculateConnectionCorePoints(conn: DiagramConnection): Point2D[] {
+  /**
+   * Rebuilds a connection's polyline and re-seats its decorations, mirroring the
+   * original app: the line is clipped at both shape borders and shortened along
+   * its own axis to make room for the source/target decorations.
+   */
+  private updateConnectionGeometry(conn: DiagramConnection): void {
     const sourceCenter = conn.source.getCenterPoint();
     const targetCenter = conn.target.getCenterPoint();
     const sourceWidth = (conn.source.width ?? 0) * (conn.source.scaleX ?? 1);
@@ -653,26 +625,64 @@ export class DiagramCanvasService {
     const targetWidth = (conn.target.width ?? 0) * (conn.target.scaleX ?? 1);
     const targetHeight = (conn.target.height ?? 0) * (conn.target.scaleY ?? 1);
 
-    const firstWaypoint = conn.bendpoints.length > 0 ? conn.bendpoints[0] : targetCenter;
-    const lastWaypoint =
-      conn.bendpoints.length > 0 ? conn.bendpoints[conn.bendpoints.length - 1] : sourceCenter;
+    const bendpoints = conn.bendpoints;
+    const hasBendpoints = bendpoints.length > 0;
 
-    const startEdge = getShapeEdgePoint(sourceCenter, sourceWidth, sourceHeight, firstWaypoint);
-    const endEdge = getShapeEdgePoint(targetCenter, targetWidth, targetHeight, lastWaypoint);
+    const firstTarget = hasBendpoints ? bendpoints[0] : targetCenter;
+    const lastTarget = hasBendpoints ? bendpoints[bendpoints.length - 1] : sourceCenter;
 
-    const startReference = conn.bendpoints.length > 0 ? conn.bendpoints[0] : endEdge;
-    const endReference =
-      conn.bendpoints.length > 0 ? conn.bendpoints[conn.bendpoints.length - 1] : startEdge;
+    const startEdge = getShapeEdgePoint(sourceCenter, sourceWidth, sourceHeight, firstTarget);
+    const endEdge = getShapeEdgePoint(targetCenter, targetWidth, targetHeight, lastTarget);
 
-    const start = getPointOnLine(startEdge, startReference, this.sourceTrim(conn.type));
-    const end = getPointOnLine(endEdge, endReference, this.targetTrim(conn.type));
+    const startAngle = Math.atan2(firstTarget.y - startEdge.y, firstTarget.x - startEdge.x);
+    const endAngle = Math.atan2(endEdge.y - lastTarget.y, endEdge.x - lastTarget.x);
 
-    if (conn.bendpoints.length === 0) {
-      const midX = (start.x + end.x) / 2;
-      return [start, { x: midX, y: start.y }, { x: midX, y: end.y }, end];
+    let start = startEdge;
+    let end = endEdge;
+
+    if (conn.type === 'aggregation' || conn.type === 'composition') {
+      start = getPointOnLine(startEdge, firstTarget, 16);
+    } else if (conn.type === 'assignment') {
+      start = getPointOnLine(startEdge, firstTarget, 8);
     }
 
-    return [start, ...conn.bendpoints.map((point) => ({ ...point })), end];
+    if (conn.type === 'realization' || conn.type === 'specialization') {
+      end = getPointOnLine(endEdge, lastTarget, 14);
+    }
+
+    conn.corePoints = [start, ...bendpoints.map((point) => ({ ...point })), end];
+
+    const startAngleDeg = (startAngle * 180) / Math.PI + 90;
+    const endAngleDeg = (endAngle * 180) / Math.PI + 90;
+
+    if (conn.sourceDec) {
+      let offset = 0;
+      if (conn.type === 'composition' || conn.type === 'aggregation') offset = 8;
+      else if (conn.type === 'assignment') offset = 4;
+
+      conn.sourceDec.set({
+        left: startEdge.x + Math.cos(startAngle) * offset,
+        top: startEdge.y + Math.sin(startAngle) * offset,
+        angle: startAngleDeg,
+      });
+      conn.sourceDec.setCoords();
+    }
+
+    if (conn.targetDec) {
+      let offset = 0;
+      if (conn.type === 'realization' || conn.type === 'specialization') offset = 8;
+      else if (conn.type === 'triggering' || conn.type === 'flow') offset = 7;
+      else if (conn.type === 'serving' || conn.type === 'access' || conn.type === 'influence') {
+        offset = 3;
+      }
+
+      conn.targetDec.set({
+        left: endEdge.x - Math.cos(endAngle) * offset,
+        top: endEdge.y - Math.sin(endAngle) * offset,
+        angle: endAngleDeg,
+      });
+      conn.targetDec.setCoords();
+    }
   }
 
   private updateAllConnections(): void {
@@ -680,13 +690,12 @@ export class DiagramCanvasService {
     if (!canvas) return;
 
     for (const conn of this.connections) {
-      conn.corePoints = this.calculateConnectionCorePoints(conn);
+      this.updateConnectionGeometry(conn);
     }
 
     this.connections.forEach((conn, index) => {
       const earlier = this.connections.slice(0, index).map((other) => other.corePoints);
       this.applyPath(conn.line, generatePathString(conn.corePoints, earlier));
-      this.positionDecorations(conn);
     });
 
     canvas.requestRenderAll();
@@ -709,49 +718,27 @@ export class DiagramCanvasService {
     internals.dirty = true;
   }
 
-  private positionDecorations(conn: DiagramConnection): void {
-    const points = conn.corePoints;
-    if (!points || points.length < 2) return;
-
-    const start = points[0];
-    const afterStart = points[1];
-    const startAngle = Math.atan2(afterStart.y - start.y, afterStart.x - start.x);
-
-    if (conn.sourceDec) {
-      const offset = this.sourceDecorationOffset(conn.type);
-      conn.sourceDec.set({
-        left: start.x + Math.cos(startAngle) * offset,
-        top: start.y + Math.sin(startAngle) * offset,
-        angle: (startAngle * 180) / Math.PI,
-      });
-      conn.sourceDec.setCoords();
-    }
-
-    const end = points[points.length - 1];
-    const beforeEnd = points[points.length - 2];
-    const endAngle = Math.atan2(end.y - beforeEnd.y, end.x - beforeEnd.x);
-
-    if (conn.targetDec) {
-      const offset = this.targetDecorationOffset(conn.type);
-      conn.targetDec.set({
-        left: end.x - Math.cos(endAngle) * offset,
-        top: end.y - Math.sin(endAngle) * offset,
-        angle: (endAngle * 180) / Math.PI,
-      });
-      conn.targetDec.setCoords();
-    }
-  }
-
   private setLineHighlight(active: ConnectionLine | undefined | null): void {
     const isDark = this.theme.isDark();
     const defaultColor = isDark ? '#94a3b8' : '#334155';
+    const background = isDark ? '#0f172a' : '#ffffff';
 
     for (const conn of this.connections) {
       const isActive = conn.line === active;
       const color = isActive ? '#3b82f6' : defaultColor;
       conn.line.set('stroke', color);
-      if (conn.sourceDec) conn.sourceDec.set('stroke', color);
-      if (conn.targetDec) conn.targetDec.set('stroke', color);
+
+      for (const dec of [conn.sourceDec, conn.targetDec]) {
+        if (!dec) continue;
+        const fill = dec.fill;
+        if (dec.stroke) dec.set('stroke', color);
+        if (typeof fill === 'string' && fill && fill !== 'transparent') {
+          if (fill === '#ffffff' || fill === '#0f172a') dec.set('fill', background);
+          else dec.set('fill', color);
+        }
+        dec.dirty = true;
+      }
+
       if (isActive) conn.line.bringToFront();
     }
   }
@@ -777,7 +764,8 @@ export class DiagramCanvasService {
         hasBorders: false,
         selectable: true,
         evented: true,
-        hoverCursor: 'pointer',
+        hoverCursor: 'grab',
+        moveCursor: 'grabbing',
         objectCaching: false,
       }) as BendpointHandle;
 
@@ -787,6 +775,8 @@ export class DiagramCanvasService {
       canvas.add(handle);
       return handle;
     });
+
+    for (const handle of this.bendpointHandles) handle.bringToFront();
   }
 
   private clearBendpoints(): void {
@@ -798,28 +788,21 @@ export class DiagramCanvasService {
 
   addBendpoint(): void {
     const canvas = this.canvas;
-    const active = canvas?.getActiveObject() as ConnectionLine | undefined;
+    const active = this.resolveActiveObject() as ConnectionLine | null;
     if (!canvas || !active?.isConnection) return;
 
     const conn = this.connections.find((candidate) => candidate.line === active);
     if (!conn) return;
 
-    const points = conn.corePoints ?? [];
-    if (points.length < 2) return;
+    const sourceCenter = conn.source.getCenterPoint();
+    const targetCenter = conn.target.getCenterPoint();
+    const lastPoint =
+      conn.bendpoints.length > 0 ? conn.bendpoints[conn.bendpoints.length - 1] : sourceCenter;
 
-    let segmentIndex = 0;
-    let longest = -1;
-    for (let i = 0; i < points.length - 1; i++) {
-      const length = Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
-      if (length > longest) {
-        longest = length;
-        segmentIndex = i;
-      }
-    }
-
-    const a = points[segmentIndex];
-    const b = points[segmentIndex + 1];
-    conn.bendpoints.splice(segmentIndex, 0, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    conn.bendpoints.push({
+      x: (lastPoint.x + targetCenter.x) / 2,
+      y: (lastPoint.y + targetCenter.y) / 2,
+    });
 
     this.updateAllConnections();
     this.showBendpoints(conn);
@@ -828,24 +811,32 @@ export class DiagramCanvasService {
 
   clearBendpointsAction(): void {
     const canvas = this.canvas;
-    const active = canvas?.getActiveObject() as ConnectionLine | undefined;
+    const active = this.resolveActiveObject() as ConnectionLine | null;
     if (!canvas || !active?.isConnection) return;
 
     const conn = this.connections.find((candidate) => candidate.line === active);
     if (!conn) return;
 
     conn.bendpoints = [];
+    if (this.bendpointHandles.includes(canvas.getActiveObject() as BendpointHandle)) {
+      canvas.setActiveObject(conn.line);
+    }
     this.updateAllConnections();
-    this.clearBendpoints();
+    this.showBendpoints(conn);
     canvas.requestRenderAll();
   }
 
   private deleteBendpoint(handle: BendpointHandle): void {
+    const canvas = this.canvas;
     const conn = handle.connection;
+    if (!canvas) return;
+
     conn.bendpoints.splice(handle.bpIndex, 1);
+    if (canvas.getActiveObject() === handle) canvas.setActiveObject(conn.line);
     this.updateAllConnections();
     this.showBendpoints(conn);
-    this.canvas?.requestRenderAll();
+    this.refreshProperties();
+    canvas.requestRenderAll();
   }
 
   // --- Canvas events -------------------------------------------------------
@@ -867,14 +858,22 @@ export class DiagramCanvasService {
     canvas.on('object:scaling', (opt) => this.onObjectScaling(opt));
   }
 
+  /** Stores the pointer position in CSS pixels relative to the canvas element. */
+  private updateMouseCoords(event: Event): void {
+    const rect = this.upperCanvasEl?.getBoundingClientRect();
+    const mouse = event as MouseEvent;
+    if (!rect || typeof mouse.clientX !== 'number') return;
+    this.lastMouseX = mouse.clientX - rect.left;
+    this.lastMouseY = mouse.clientY - rect.top;
+  }
+
   private onMouseDown(opt: fabric.IEvent<Event>): void {
     const canvas = this.canvas;
     if (!canvas) return;
 
     const event = opt.e as MouseEvent;
     const pointer = canvas.getPointer(event);
-    this.lastMouseX = pointer.x;
-    this.lastMouseY = pointer.y;
+    this.updateMouseCoords(event);
 
     if (event.altKey || event.button === 1 || this.isSpaceDown) {
       this.isPanning = true;
@@ -916,8 +915,7 @@ export class DiagramCanvasService {
 
     const event = opt.e as MouseEvent;
     const pointer = canvas.getPointer(event);
-    this.lastMouseX = pointer.x;
-    this.lastMouseY = pointer.y;
+    this.updateMouseCoords(event);
 
     if (this.isPanning) {
       const vpt = canvas.viewportTransform ?? [1, 0, 0, 1, 0, 0];
@@ -936,7 +934,7 @@ export class DiagramCanvasService {
       canvas.requestRenderAll();
     }
 
-    const active = canvas.getActiveObject() as ConnectionLine | undefined;
+    const active = this.resolveActiveObject() as ConnectionLine | null;
     if (active?.isConnection) this.updateToolbar();
   }
 
@@ -975,6 +973,7 @@ export class DiagramCanvasService {
     if (!canvas) return;
 
     const event = opt.e as WheelEvent;
+    this.updateMouseCoords(event);
     if (event.ctrlKey || event.metaKey) {
       event.preventDefault();
       event.stopPropagation();
@@ -988,6 +987,7 @@ export class DiagramCanvasService {
     }
 
     this.syncPatternOffset();
+    this.updateToolbar();
     canvas.requestRenderAll();
   }
 
@@ -997,6 +997,18 @@ export class DiagramCanvasService {
 
     if (target.type === 'activeSelection') {
       this.updateAllConnections();
+      return;
+    }
+
+    const handle = target as BendpointHandle;
+    if (handle.isBendpoint) {
+      const conn = handle.connection;
+      const index = handle.bpIndex;
+      if (index >= 0 && index < conn.bendpoints.length) {
+        conn.bendpoints[index] = { x: handle.left ?? 0, y: handle.top ?? 0 };
+      }
+      this.updateAllConnections();
+      this.updateToolbar();
       return;
     }
 
@@ -1337,19 +1349,43 @@ export class DiagramCanvasService {
     this.syncSelection();
   }
 
+  /**
+   * Bendpoint handles are transient helpers: whenever one is selected or dragged,
+   * the connection it belongs to is treated as the active object so the line keeps
+   * its highlight, properties and toolbar.
+   */
+  private resolveActiveObject(): fabric.Object | null {
+    const active = (this.canvas?.getActiveObject() ?? null) as
+      | (fabric.Object & Partial<BendpointHandle>)
+      | null;
+    if (!active) return null;
+    return active.isBendpoint && active.connection ? active.connection.line : active;
+  }
+
   private syncSelection(): void {
     const canvas = this.canvas;
     if (!canvas) return;
 
-    const active = (canvas.getActiveObject() ?? null) as fabric.Object | null;
+    const rawActive = (canvas.getActiveObject() ?? null) as
+      | (fabric.Object & Partial<BendpointHandle>)
+      | null;
+    const activeHandle = rawActive?.isBendpoint && rawActive.connection ? rawActive : null;
+    const active = activeHandle?.connection?.line ?? rawActive;
+
     this.setLineHighlight(active as ConnectionLine | null);
 
     const connection = active as ConnectionLine | null;
     const diagramConnection = connection?.isConnection
       ? this.connections.find((candidate) => candidate.line === connection)
       : undefined;
-    if (diagramConnection) this.showBendpoints(diagramConnection);
-    else this.clearBendpoints();
+
+    if (activeHandle) {
+      this.setLineHighlight(activeHandle.connection!.line);
+    } else if (diagramConnection) {
+      this.showBendpoints(diagramConnection);
+    } else {
+      this.clearBendpoints();
+    }
 
     this.refreshTree();
     this.refreshProperties();
@@ -1384,7 +1420,7 @@ export class DiagramCanvasService {
         })),
     );
 
-    const activeObject = canvas?.getActiveObject();
+    const activeObject = this.resolveActiveObject();
     const layerMap = new Map<string, ShapeSummary[]>();
 
     if (canvas) {
@@ -1432,7 +1468,7 @@ export class DiagramCanvasService {
 
   private refreshProperties(): void {
     const canvas = this.canvas;
-    const active = canvas?.getActiveObject() as fabric.Object | undefined;
+    const active = this.resolveActiveObject() as fabric.Object | undefined;
     if (!active) {
       this.store.resetSelection();
       return;
@@ -1506,7 +1542,7 @@ export class DiagramCanvasService {
     const canvas = this.canvas;
     if (!canvas) return;
 
-    const active = canvas.getActiveObject();
+    const active = this.resolveActiveObject();
     if (
       !active ||
       active.type === 'activeSelection' ||
@@ -1535,10 +1571,13 @@ export class DiagramCanvasService {
     }
 
     const bounds = shape.getBoundingRect();
+    const vpt = canvas.viewportTransform ?? [1, 0, 0, 1, 0, 0];
+    const centerX = (bounds.left + bounds.width / 2) * vpt[0] + vpt[4];
+    const topY = bounds.top * vpt[3] + vpt[5];
     this.store.toolbar.set({
       visible: true,
-      left: bounds.left + bounds.width / 2,
-      top: Math.max(10, bounds.top - 46),
+      left: centerX,
+      top: Math.max(10, topY - 46),
     });
   }
 
@@ -1768,14 +1807,15 @@ export class DiagramCanvasService {
   }
 
   bringToFront(): void {
-    const active = this.canvas?.getActiveObject();
+    const active = this.resolveActiveObject();
     if (!active) return;
     active.bringToFront();
+    for (const handle of this.bendpointHandles) handle.bringToFront();
     this.canvas?.requestRenderAll();
   }
 
   sendToBack(): void {
-    const active = this.canvas?.getActiveObject();
+    const active = this.resolveActiveObject();
     if (!active) return;
     active.sendToBack();
     this.canvas?.requestRenderAll();
