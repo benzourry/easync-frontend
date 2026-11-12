@@ -1,51 +1,43 @@
+import { DragDropModule } from '@angular/cdk/drag-drop';
 import { Component, computed, inject } from '@angular/core';
 import { PALETTE_CATEGORIES, RELATIONSHIP_OPTIONS } from '../models/archimate.models';
 import type { PaletteItem, RelationshipType } from '../models/archimate.models';
-import { DiagramCanvasService } from '../services/diagram-canvas.service';
+import { DiagramCanvasService, type DragPayload } from '../services/diagram-canvas.service';
 import { DiagramStore } from '../services/diagram-store';
 
 @Component({
   selector: 'app-palette-sidebar',
+  imports: [DragDropModule],
   template: `
-    <aside [class]="asideClass()">
+    <aside
+      id="elements-palette"
+      class="app-sidebar offcanvas-md offcanvas-start d-flex flex-column border-end"
+      [class.show]="store.paletteOpen()"
+      aria-label="Elements palette"
+    >
       <div
-        class="p-4 bg-gray-50 dark:bg-slate-800/50 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center"
+        class="d-flex align-items-start justify-content-between gap-2 px-3 py-3 border-bottom bg-body-tertiary flex-shrink-0"
       >
         <div>
-          <h2 class="text-sm font-semibold text-gray-700 dark:text-slate-200">Elements Palette</h2>
-          <p class="text-xs text-gray-500 dark:text-slate-400 mt-1">Drag or tap to add</p>
+          <h2 class="h6 mb-0">Elements Palette</h2>
+          <p class="small text-body-secondary mb-0">Drag or tap to add</p>
         </div>
         <button
           type="button"
-          class="md:hidden text-gray-500 hover:text-gray-800 dark:hover:text-white"
+          class="btn-close d-md-none flex-shrink-0"
           aria-label="Close elements palette"
           (click)="store.togglePalette()"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+        ></button>
       </div>
 
       <div
-        class="p-4 overflow-y-auto flex-1 custom-scrollbar space-y-6 bg-white dark:bg-slate-800"
+        class="flex-grow-1 overflow-auto app-scroll px-3 py-3 bg-body"
+        cdkDropList
+        cdkDropListSortingDisabled
+        cdkDropListAutoScrollDisabled
       >
-        <div>
-          <h3
-            class="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-3 flex items-center gap-2"
-          >
+        <section class="mb-4">
+          <h3 class="app-section-title">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="14"
@@ -62,7 +54,8 @@ import { DiagramStore } from '../services/diagram-store';
             </svg>
             Tools
           </h3>
-          <div class="flex flex-col gap-2">
+
+          <div class="d-flex flex-column gap-2">
             <button
               type="button"
               [class]="connectClass()"
@@ -85,45 +78,54 @@ import { DiagramStore } from '../services/diagram-store';
               </svg>
               <span>{{ store.connectionMode() ? 'Stop Connecting' : 'Connect' }}</span>
             </button>
-            <label class="sr-only" for="relationship-type">Relationship type</label>
-            <select
-              id="relationship-type"
-              class="w-full h-9 px-2 text-sm border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-700"
-              [value]="store.connectionType()"
-              (change)="onTypeChange($event)"
-            >
-              @for (option of relationshipOptions; track option.value) {
-                <option [value]="option.value">{{ option.label }}</option>
-              }
-            </select>
+
+            <div>
+              <label class="form-label small mb-1" for="relationship-type">Relationship type</label>
+              <select
+                id="relationship-type"
+                class="form-select form-select-sm"
+                [value]="store.connectionType()"
+                (change)="onTypeChange($event)"
+              >
+                @for (option of relationshipOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                }
+              </select>
+            </div>
           </div>
-        </div>
+        </section>
 
         @for (category of categories; track category.title) {
-          <div>
-            <h3
-              class="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-3 flex items-center gap-2"
-            >
-              <span [class]="'w-3 h-3 rounded-full border ' + category.dotColorClass"></span>
+          <section class="mb-4">
+            <h3 class="app-section-title">
+              <span
+                class="d-inline-block rounded-circle border app-color-dot"
+                [style.background-color]="category.dotColor"
+                aria-hidden="true"
+              ></span>
               {{ category.title }}
             </h3>
-            <div class="grid grid-cols-2 gap-2">
+
+            <div class="app-palette-grid">
               @for (item of category.items; track item.label) {
                 <button
                   type="button"
-                  draggable="true"
+                  cdkDrag
+                  cdkDragPreviewClass="app-drag-preview"
+                  [cdkDragData]="payload(item)"
                   [class]="itemClass(item)"
-                  [style.backgroundColor]="item.isDashed ? null : item.color"
+                  [style.background-color]="item.isDashed ? null : item.color"
                   [attr.aria-label]="'Add ' + item.label"
-                  (dragstart)="onDragStart($event, item)"
-                  (click)="diagram.addPaletteItem(item)"
+                  (cdkDragStarted)="onDragStarted()"
+                  (cdkDragEnded)="onDragEnded()"
+                  (click)="onItemClick(item)"
                 >
-                  <span class="text-lg mb-1 opacity-70" aria-hidden="true">{{ item.icon }}</span>
-                  {{ item.displayLabel }}
+                  <span class="fs-5 lh-1 opacity-75" aria-hidden="true">{{ item.icon }}</span>
+                  <span class="app-palette-label">{{ item.displayLabel }}</span>
                 </button>
               }
             </div>
-          </div>
+          </section>
         }
       </div>
     </aside>
@@ -136,40 +138,43 @@ export class PaletteSidebar {
   protected readonly categories = PALETTE_CATEGORIES;
   protected readonly relationshipOptions = RELATIONSHIP_OPTIONS;
 
-  protected readonly asideClass = computed(
+  protected readonly connectClass = computed(
     () =>
-      `w-64 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 flex flex-col h-full z-50 shadow-[4px_0_15px_rgba(0,0,0,0.03)] shrink-0 absolute md:relative transform transition-transform duration-300 md:translate-x-0 ${
-        this.store.paletteOpen() ? 'translate-x-0' : '-translate-x-full'
+      `btn w-100 d-flex align-items-center justify-content-center gap-2 ${
+        this.store.connectionMode() ? 'btn-primary' : 'btn-outline-secondary'
       }`,
   );
 
-  protected readonly connectClass = computed(
-    () =>
-      `w-full flex items-center justify-center gap-2 px-3 py-2 border rounded-md shadow-sm transition-colors text-sm font-medium ${
-        this.store.connectionMode()
-          ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
-          : 'bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-600'
-      }`,
-  );
+  /** Set while a drag is in flight so the trailing click does not add twice. */
+  private dragging = false;
 
   protected itemClass(item: PaletteItem): string {
     const base =
-      'palette-item border border-gray-400 rounded p-2 text-center text-xs flex flex-col items-center justify-center h-16 shadow-sm w-full';
+      'palette-item btn btn-sm border rounded-2 d-flex flex-column align-items-center justify-content-center gap-1 p-1';
     return item.isDashed
-      ? `${base} bg-white dark:bg-slate-700 dark:border-slate-500 border-dashed dark:text-slate-200`
-      : `${base} text-slate-900`;
+      ? `${base} border-dashed border-secondary-subtle bg-body`
+      : `${base} border-secondary-subtle text-dark`;
   }
 
   protected onTypeChange(event: Event): void {
     this.store.connectionType.set((event.target as HTMLSelectElement).value as RelationshipType);
   }
 
-  protected onDragStart(event: DragEvent, item: PaletteItem): void {
-    this.diagram.startDrag(event, {
-      label: item.label,
-      color: item.color,
-      icon: item.icon,
-      layer: item.layer,
-    });
+  protected onItemClick(item: PaletteItem): void {
+    if (this.dragging) return;
+    this.diagram.addPaletteItem(item);
+  }
+
+  protected payload(item: PaletteItem): DragPayload {
+    return { label: item.label, color: item.color, icon: item.icon, layer: item.layer };
+  }
+
+  protected onDragStarted(): void {
+    this.dragging = true;
+  }
+
+  protected onDragEnded(): void {
+    // The browser emits a click on the tile after the drag; let it pass first.
+    setTimeout(() => (this.dragging = false));
   }
 }

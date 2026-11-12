@@ -1,35 +1,33 @@
 import { Component, DestroyRef, ElementRef, afterNextRender, inject, viewChild } from '@angular/core';
-import type { DragPayload } from '../services/diagram-canvas.service';
-import { DiagramCanvasService } from '../services/diagram-canvas.service';
+import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
+import { DiagramCanvasService, type DragPayload } from '../services/diagram-canvas.service';
 import { DiagramStore } from '../services/diagram-store';
+import { clientPointFromEvent } from '../utils/drag-point';
 
 @Component({
   selector: 'app-canvas-stage',
+  imports: [DragDropModule],
   template: `
     <main
       #host
-      class="flex-1 relative bg-[#f8fafc] dark:bg-[#0f172a] w-full h-full transition-colors duration-200 overflow-hidden"
-      (dragover)="onDragOver($event)"
-      (drop)="onDrop($event)"
+      class="app-canvas-surface flex-grow-1 position-relative h-100 w-100 overflow-hidden"
+      cdkDropList
+      cdkDropListSortingDisabled
+      (cdkDropListDropped)="onDrop($event)"
     >
       <div
-        class="absolute top-4 left-1/2 -translate-x-1/2 flex gap-4 text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-800/60 px-4 py-1.5 rounded-full shadow-sm backdrop-blur-md pointer-events-none z-10 border border-slate-200/50 dark:border-slate-700/50 opacity-70 whitespace-nowrap"
+        class="app-overlay-pill position-absolute top-0 start-50 translate-middle-x mt-3 d-none d-md-flex gap-4 px-3 py-1 small text-body-secondary z-2 text-nowrap pe-none"
+        aria-hidden="true"
       >
-        <span
-          ><kbd class="px-1.5 py-0.5 rounded bg-slate-100/80 dark:bg-slate-700/80">Shift</kbd> + Drag
-          to connect</span
-        >
-        <span
-          ><kbd class="px-1.5 py-0.5 rounded bg-slate-100/80 dark:bg-slate-700/80">Space</kbd> + Drag
-          to pan</span
-        >
+        <span><kbd>Shift</kbd> + Drag to connect</span>
+        <span><kbd>Space</kbd> + Drag to pan</span>
       </div>
 
-      <canvas #canvas aria-label="ArchiMate diagram canvas"></canvas>
+      <canvas #canvas class="d-block" aria-label="ArchiMate diagram canvas"></canvas>
 
       @if (store.connectionMode()) {
         <div
-          class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded shadow-lg text-sm font-medium z-20"
+          class="alert alert-primary position-absolute bottom-0 start-50 translate-middle-x mb-4 px-3 py-2 small shadow-sm z-3"
           role="status"
         >
           {{ store.connectionHint() }}
@@ -37,11 +35,7 @@ import { DiagramStore } from '../services/diagram-store';
       }
 
       @if (store.toast(); as toast) {
-        <div
-          [class]="toastClass(toast.isError)"
-          role="status"
-          aria-live="polite"
-        >
+        <div [class]="toastClass(toast.isError)" role="status" aria-live="polite">
           {{ toast.text }}
         </div>
       }
@@ -50,30 +44,33 @@ import { DiagramStore } from '../services/diagram-store';
         [class]="toolbarClass()"
         [style.left.px]="store.toolbar().left"
         [style.top.px]="store.toolbar().top"
-        [attr.aria-hidden]="!store.toolbar().visible"
       >
+        <div class="btn-group btn-group-sm" role="group" aria-label="Actions for the selected object">
+          <button
+            type="button"
+            class="btn btn-light"
+            title="Bring to Front"
+            aria-label="Bring to front"
+            (click)="diagram.bringToFront()"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            class="btn btn-light"
+            title="Send to Back"
+            aria-label="Send to back"
+            (click)="diagram.sendToBack()"
+          >
+            ↓
+          </button>
+        </div>
+
+        <div class="vr opacity-25"></div>
+
         <button
           type="button"
-          class="flex items-center justify-center w-7 h-7 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
-          title="Bring to Front"
-          aria-label="Bring to front"
-          (click)="diagram.bringToFront()"
-        >
-          ↑
-        </button>
-        <button
-          type="button"
-          class="flex items-center justify-center w-7 h-7 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
-          title="Send to Back"
-          aria-label="Send to back"
-          (click)="diagram.sendToBack()"
-        >
-          ↓
-        </button>
-        <div class="w-px h-4 bg-gray-300 dark:bg-slate-600 mx-1"></div>
-        <button
-          type="button"
-          class="flex items-center justify-center w-7 h-7 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-700 rounded transition-colors"
+          class="btn btn-sm btn-light text-primary"
           title="Edit Properties"
           aria-label="Edit properties"
           (click)="diagram.editActiveObject()"
@@ -93,10 +90,12 @@ import { DiagramStore } from '../services/diagram-store';
             <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
           </svg>
         </button>
-        <div class="w-px h-4 bg-gray-300 dark:bg-slate-600 mx-1"></div>
+
+        <div class="vr opacity-25"></div>
+
         <button
           type="button"
-          class="flex items-center justify-center w-7 h-7 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-slate-700 rounded transition-colors"
+          class="btn btn-sm btn-light text-danger"
           title="Delete"
           aria-label="Delete selected object"
           (click)="diagram.deleteActive()"
@@ -145,35 +144,23 @@ export class CanvasStage {
     inject(DestroyRef).onDestroy(() => this.diagram.detach());
   }
 
+  protected onDrop(event: CdkDragDrop<DragPayload>): void {
+    const payload = event.item.data as DragPayload | undefined;
+    if (!payload) return;
+
+    const point = clientPointFromEvent(event.event);
+    this.diagram.dropPayloadAt(payload, point.x, point.y);
+  }
+
   protected toolbarClass(): string {
     const base =
-      'absolute -translate-x-1/2 flex items-center gap-1 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border border-gray-200 dark:border-slate-700 p-1 rounded-lg shadow-xl transition-all duration-200 z-20';
-    return this.store.toolbar().visible
-      ? `${base} opacity-100 scale-100`
-      : `${base} opacity-0 scale-95 pointer-events-none`;
+      'app-toolbar position-absolute translate-middle-x d-flex align-items-center gap-1 bg-body border rounded-3 shadow p-1 z-3';
+    return this.store.toolbar().visible ? `${base} opacity-100` : `${base} opacity-0 invisible`;
   }
 
   protected toastClass(isError: boolean): string {
     const base =
-      'absolute bottom-6 left-1/2 -translate-x-1/2 text-white px-4 py-2 rounded shadow-lg text-sm font-medium z-30 max-w-[90%]';
-    return `${base} ${isError ? 'bg-red-600' : 'bg-gray-800 dark:bg-gray-700'}`;
-  }
-
-  protected onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
-  }
-
-  protected onDrop(event: DragEvent): void {
-    event.preventDefault();
-    const raw = event.dataTransfer?.getData('application/x-archimate');
-    if (!raw) return;
-
-    try {
-      const payload = JSON.parse(raw) as DragPayload;
-      this.diagram.handleDrop(payload, event.clientX, event.clientY);
-    } catch {
-      this.store.showToast('Unable to add the dropped element.', true);
-    }
+      'alert position-absolute bottom-0 start-50 translate-middle-x mb-4 px-3 py-2 small shadow-sm z-3 text-center';
+    return isError ? `${base} alert-danger` : `${base} alert-dark`;
   }
 }

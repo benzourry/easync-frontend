@@ -23,7 +23,7 @@ export interface PaletteItem {
 export interface PaletteCategory {
   title: string;
   layerName: string;
-  dotColorClass: string;
+  dotColor: string;
   items: PaletteItem[];
 }
 
@@ -170,7 +170,7 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
   {
     title: 'Generic',
     layerName: 'Generic',
-    dotColorClass: 'bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-500',
+    dotColor: '#ffffff',
     items: [
       {
         label: 'Grouping',
@@ -185,7 +185,7 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
   {
     title: 'Motivation',
     layerName: 'Motivation',
-    dotColorClass: 'bg-[#ccccff] border-gray-300',
+    dotColor: '#ccccff',
     items: [
       { label: 'Stakeholder', displayLabel: 'Stakeholder', color: '#ccccff', icon: '웃', layer: 'Motivation' },
       { label: 'Driver', displayLabel: 'Driver', color: '#ccccff', icon: '⚑', layer: 'Motivation' },
@@ -196,7 +196,7 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
   {
     title: 'Strategy',
     layerName: 'Strategy',
-    dotColorClass: 'bg-[#f5deaa] border-gray-300',
+    dotColor: '#f5deaa',
     items: [
       { label: 'Resource', displayLabel: 'Resource', color: '#f5deaa', icon: '▤', layer: 'Strategy' },
       { label: 'Capability', displayLabel: 'Capability', color: '#f5deaa', icon: '◩', layer: 'Strategy' },
@@ -206,7 +206,7 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
   {
     title: 'Business',
     layerName: 'Business',
-    dotColorClass: 'bg-[#ffffb5] border-gray-300',
+    dotColor: '#ffffb5',
     items: [
       { label: 'Business Actor', displayLabel: 'Actor', color: '#ffffb5', icon: '웃', layer: 'Business' },
       { label: 'Business Role', displayLabel: 'Role', color: '#ffffb5', icon: '◪', layer: 'Business' },
@@ -220,7 +220,7 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
   {
     title: 'Application',
     layerName: 'Application',
-    dotColorClass: 'bg-[#b5ffff] border-gray-300',
+    dotColor: '#b5ffff',
     items: [
       { label: 'Application Component', displayLabel: 'Component', color: '#b5ffff', icon: '◫', layer: 'Application' },
       { label: 'Application Service', displayLabel: 'Service', color: '#b5ffff', icon: '⌓', layer: 'Application' },
@@ -232,7 +232,7 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
   {
     title: 'Tech & Physical',
     layerName: 'Tech & Physical',
-    dotColorClass: 'bg-[#c9e7b7] border-gray-300',
+    dotColor: '#c9e7b7',
     items: [
       { label: 'Technology Node', displayLabel: 'Node', color: '#c9e7b7', icon: '⚀', layer: 'Tech & Physical' },
       { label: 'Technology Device', displayLabel: 'Device', color: '#c9e7b7', icon: '⬚', layer: 'Tech & Physical' },
@@ -246,7 +246,7 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
   {
     title: 'Implementation',
     layerName: 'Implementation',
-    dotColorClass: 'bg-[#ffe0e0] border-gray-300',
+    dotColor: '#ffe0e0',
     items: [
       { label: 'Work Package', displayLabel: 'Work Package', color: '#ffe0e0', icon: '◧', layer: 'Implementation' },
       { label: 'Deliverable', displayLabel: 'Deliverable', color: '#ffe0e0', icon: '◨', layer: 'Implementation' },

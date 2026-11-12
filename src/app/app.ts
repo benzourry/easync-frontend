@@ -1,3 +1,4 @@
+import { DragDropModule } from '@angular/cdk/drag-drop';
 import { Component, inject } from '@angular/core';
 import { AppHeader } from './components/app-header';
 import { CanvasStage } from './components/canvas-stage';
@@ -9,6 +10,7 @@ import { DiagramStore } from './services/diagram-store';
 @Component({
   selector: 'app-root',
   imports: [
+    DragDropModule,
     AppHeader,
     PaletteSidebar,
     CanvasStage,

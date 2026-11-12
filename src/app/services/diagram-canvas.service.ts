@@ -262,11 +262,20 @@ export class DiagramCanvasService {
 
   // --- Palette & drop ------------------------------------------------------
 
-  startDrag(event: DragEvent, payload: DragPayload): void {
-    if (!event.dataTransfer) return;
-    event.dataTransfer.setData('application/x-archimate', JSON.stringify(payload));
-    event.dataTransfer.setData('text/plain', payload.label);
-    event.dataTransfer.effectAllowed = 'copy';
+  /** True when the given client coordinates fall inside the canvas surface. */
+  isPointOverCanvas(clientX: number, clientY: number): boolean {
+    const host = this.host;
+    if (!host) return false;
+    const rect = host.getBoundingClientRect();
+    return (
+      clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
+    );
+  }
+
+  /** Places a palette/repository payload only when it was dropped onto the canvas surface. */
+  dropPayloadAt(payload: DragPayload, clientX: number, clientY: number): void {
+    if (!this.isPointOverCanvas(clientX, clientY)) return;
+    this.handleDrop(payload, clientX, clientY);
   }
 
   addPaletteItem(item: PaletteItem | DragPayload): void {
@@ -1209,6 +1218,11 @@ export class DiagramCanvasService {
       this.store.editDialogValue.set(null);
       this.store.clearDialogOpen.set(false);
       this.store.newViewDialogOpen.set(false);
+      // Let an open dialog consume the first Escape; the next one closes mobile sidebars.
+      if (!document.querySelector('ngb-modal-window')) {
+        this.store.paletteOpen.set(false);
+        this.store.explorerOpen.set(false);
+      }
       return;
     }
 

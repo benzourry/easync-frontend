@@ -1,52 +1,269 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 /* Global styles for EAsync - ArchiMate Designer */
+
+html,
 body {
-  font-family: 'Inter', sans-serif;
+  height: 100%;
 }
 
-/* Subtle interactions for palette */
+body {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+/* --- Layout ------------------------------------------------------------- */
+
+.app-shell {
+  height: 100%;
+  overflow: hidden;
+}
+
+.app-body {
+  min-height: 0;
+}
+
+.app-logo {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.125rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Sidebars are static panels from 768px up and drawers below that width. */
+app-palette-sidebar,
+app-explorer-sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: 0;
+}
+
+.app-sidebar {
+  --bs-offcanvas-width: 16rem;
+  width: 16rem;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.app-sidebar-end {
+  --bs-offcanvas-width: 18rem;
+  width: 18rem;
+}
+
+.app-sidebar .app-scroll {
+  min-height: 0;
+}
+
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1040;
+  background-color: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.app-backdrop.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.app-canvas-surface {
+  background-color: var(--bs-tertiary-bg);
+  min-width: 0;
+}
+
+.app-canvas-surface .canvas-container {
+  margin: 0 !important;
+}
+
+.app-canvas-surface canvas {
+  display: block;
+}
+
+.app-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+.app-color-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* --- Palette ------------------------------------------------------------ */
+
+.app-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
 .palette-item {
-  transition: all 0.15s ease-in-out;
+  width: 100%;
+  height: 4rem;
   cursor: grab;
+  touch-action: pan-y;
+  transition:
+    box-shadow 0.15s ease-in-out,
+    border-color 0.15s ease-in-out;
 }
 
 .palette-item:active {
   cursor: grabbing;
-  transform: scale(0.96);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* Custom scrollbar for sidebar */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+.palette-item:hover {
+  border-color: var(--bs-secondary-color) !important;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+/* Touch drags need `touch-action: none`; leave it off on small screens so the
+   palette itself stays scrollable (tap-to-add is available there). */
+@media (min-width: 768px) {
+  .palette-item {
+    touch-action: none;
+  }
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 4px;
+.app-palette-label {
+  font-size: 0.6875rem;
+  line-height: 1.15;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+.border-dashed {
+  border-style: dashed !important;
 }
 
-/* Tree View List Styling */
-details > summary {
+/* --- Drag and drop ------------------------------------------------------ */
+
+.app-drag-preview {
+  cursor: grabbing;
+  opacity: 0.92;
+  box-shadow: var(--bs-box-shadow-lg);
+}
+
+.cdk-drag-dragging:not(.cdk-drag-preview) {
+  opacity: 0.4;
+}
+
+.app-drag-row {
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.app-drag-row:active {
+  cursor: grabbing;
+}
+
+@media (min-width: 768px) {
+  .app-drag-row {
+    touch-action: none;
+  }
+}
+
+/* --- Tree --------------------------------------------------------------- */
+
+.app-tree-summary {
   list-style: none;
+  cursor: pointer;
+  padding: 0.375rem 0.375rem;
+  border-radius: var(--bs-border-radius);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
 }
 
-details > summary::-webkit-details-marker {
+.app-tree-summary:hover,
+.app-tree-subsummary:hover {
+  background-color: var(--bs-tertiary-bg);
+}
+
+.app-tree-summary::-webkit-details-marker {
   display: none;
 }
 
-.canvas-container {
-  margin: 0 !important;
+.app-tree-subsummary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.125rem 0.25rem;
+  border-radius: var(--bs-border-radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--bs-body-color);
 }
 
+.app-tree-subsummary::-webkit-details-marker {
+  display: none;
+}
+
+.app-tree-row {
+  font-size: 0.75rem;
+}
+
+.app-drag-row {
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color);
+  border: 1px solid transparent;
+}
+
+.app-drag-row:hover {
+  border-color: var(--bs-border-color);
+}
+
+.app-tab {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* --- Scrollbars --------------------------------------------------------- */
+
+.app-scroll {
+  scrollbar-width: thin;
+}
+
+.app-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-scroll::-webkit-scrollbar-thumb {
+  background: var(--bs-border-color);
+  border-radius: 4px;
+}
+
+.app-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--bs-secondary-color);
+}
+
+/* --- Floating overlays on the canvas ------------------------------------ */
+
+.app-overlay-pill {
+  background-color: color-mix(in srgb, var(--bs-body-bg) 75%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--bs-border-color-translucent);
+}
+
+.app-toolbar {
+  transition: opacity 0.15s ease-in-out;
+}

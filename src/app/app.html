@@ -1,10 +1,10 @@
-<div class="flex flex-col h-full w-full overflow-hidden">
+<div class="app-shell d-flex flex-column">
   <app-header />
 
-  <div class="flex flex-1 overflow-hidden relative">
+  <div class="app-body d-flex flex-grow-1 position-relative overflow-hidden" cdkDropListGroup>
     <div
-      class="fixed inset-0 bg-black/50 z-40 md:hidden"
-      [class.hidden]="!store.paletteOpen() && !store.explorerOpen()"
+      class="app-backdrop d-md-none"
+      [class.show]="store.paletteOpen() || store.explorerOpen()"
       aria-hidden="true"
       (click)="store.closeSidebars()"
     ></div>

@@ -1,6 +1,6 @@
 import { Service, signal } from '@angular/core';
 
-/** Keeps the `dark` class on the document root in sync with the selected theme. */
+/** Keeps the Bootstrap `data-bs-theme` attribute on the document root in sync with the selected theme. */
 @Service()
 export class ThemeService {
   private readonly dark = signal(false);
@@ -18,6 +18,6 @@ export class ThemeService {
 
   private apply(isDark: boolean): void {
     this.dark.set(isDark);
-    document.documentElement.classList.toggle('dark', isDark);
+    document.documentElement.setAttribute('data-bs-theme', isDark ? 'dark' : 'light');
   }
 }
