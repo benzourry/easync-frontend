@@ -123,6 +123,12 @@ interface PathInternals {
   _calcDimensions(): { left: number; top: number; width: number; height: number };
 }
 
+/** Interaction flags an object had before view-only mode replaced them. */
+type ObjectInteraction = Pick<
+  fabric.Object,
+  'selectable' | 'evented' | 'hoverCursor' | 'lockMovementX' | 'lockMovementY' | 'hasControls'
+>;
+
 /** Owns the Fabric.js canvas: rendering, interaction, persistence and inspector state. */
 @Service()
 export class DiagramCanvasService {
@@ -146,6 +152,8 @@ export class DiagramCanvasService {
   /** View to render as soon as the canvas exists (set when a diagram loads before attach). */
   private pendingViewId: string | null = null;
   private readOnly = false;
+  /** Interaction flags to restore when a read-only viewer regains editing rights. */
+  private readonly editableFlags = new WeakMap<fabric.Object, ObjectInteraction>();
 
   private bendpointHandles: BendpointHandle[] = [];
   private clipboard: CopiedItem[] = [];
@@ -244,7 +252,11 @@ export class DiagramCanvasService {
     this.store.canRedo.set(false);
   }
 
-  /** Blocks editing for view-only shares while keeping pan, zoom and selection-free reading. */
+  /**
+   * Blocks editing for view-only shares. Objects stay clickable so a viewer can
+   * select an element and read its properties, but nothing can be dragged,
+   * resized, rotated or rubber-band selected.
+   */
   private applyReadOnly(readOnly: boolean): void {
     this.readOnly = readOnly;
     const canvas = this.canvas;
@@ -252,16 +264,34 @@ export class DiagramCanvasService {
 
     canvas.selection = !readOnly;
     for (const object of canvas.getObjects()) {
-      object.set({
-        selectable: !readOnly,
-        evented: !readOnly,
-        hoverCursor: readOnly ? 'default' : 'move',
-      });
+      if (readOnly) {
+        if (!this.editableFlags.has(object)) {
+          this.editableFlags.set(object, {
+            selectable: object.selectable,
+            evented: object.evented,
+            hoverCursor: object.hoverCursor,
+            lockMovementX: object.lockMovementX,
+            lockMovementY: object.lockMovementY,
+            hasControls: object.hasControls,
+          });
+        }
+        object.set({
+          selectable: true,
+          evented: true,
+          hoverCursor: 'pointer',
+          lockMovementX: true,
+          lockMovementY: true,
+          hasControls: false,
+        });
+      } else {
+        const previous = this.editableFlags.get(object);
+        if (!previous) continue;
+        object.set(previous);
+        this.editableFlags.delete(object);
+      }
     }
-    if (readOnly) {
-      canvas.discardActiveObject();
-      if (this.store.connectionMode()) this.store.exitConnectionMode();
-    }
+
+    if (readOnly && this.store.connectionMode()) this.store.exitConnectionMode();
     canvas.requestRenderAll();
     this.updateToolbar();
   }
@@ -1051,6 +1081,8 @@ export class DiagramCanvasService {
 
   private showBendpoints(conn: DiagramConnection): void {
     this.clearBendpoints();
+    // Bendpoint handles are editing affordances, so view-only mode never shows them.
+    if (this.readOnly) return;
     const canvas = this.canvas;
     if (!canvas) return;
 
@@ -1181,6 +1213,10 @@ export class DiagramCanvasService {
       return;
     }
 
+    // Viewers may select an object to read its properties, but every gesture
+    // below this point creates or edits something.
+    if (this.readOnly) return;
+
     if (this.store.connectionMode()) {
       const sourceCandidate = opt.target as ArchimateShape | undefined;
       if (sourceCandidate?.isShape) this.handleConnectionClick(sourceCandidate);
@@ -1239,7 +1275,8 @@ export class DiagramCanvasService {
 
     if (this.isPanning) {
       this.isPanning = false;
-      canvas.selection = true;
+      // Rubber-band selection stays off for viewers, so restore their state.
+      canvas.selection = !this.readOnly;
       canvas.setCursor('default');
       this.updateToolbar();
     }
@@ -1249,7 +1286,7 @@ export class DiagramCanvasService {
     const source = this.shiftSource;
     this.isShiftDragging = false;
     this.shiftSource = null;
-    canvas.selection = true;
+    canvas.selection = !this.readOnly;
 
     if (this.tempLine) {
       canvas.remove(this.tempLine);
@@ -1522,6 +1559,13 @@ export class DiagramCanvasService {
   private onDoubleClick(opt: fabric.IEvent<Event>): void {
     const canvas = this.canvas;
     if (!canvas || !opt.target) return;
+
+    if (this.readOnly) {
+      // Only navigation stays available to a viewer.
+      const shape = opt.target as ArchimateShape;
+      if (shape.isShape && shape.linkedView) this.selectView(shape.linkedView);
+      return;
+    }
 
     const bendpoint = opt.target as BendpointHandle;
     if (bendpoint.isBendpoint) {
@@ -1875,6 +1919,9 @@ export class DiagramCanvasService {
       this.clearBendpoints();
     }
 
+    // A viewer only selects an object to inspect it, so surface its properties.
+    if (this.readOnly && active) this.store.setSidebarTab('properties');
+
     this.refreshTree();
     this.refreshProperties();
     this.updateToolbar();
@@ -2046,6 +2093,12 @@ export class DiagramCanvasService {
     const isConnection = (active as ConnectionLine).isConnection === true;
     const isShape = (active as ArchimateShape).isShape === true;
     if (!isConnection && !isShape) {
+      hide();
+      return;
+    }
+
+    // Every toolbar action mutates the diagram, so viewers get no toolbar.
+    if (this.readOnly) {
       hide();
       return;
     }

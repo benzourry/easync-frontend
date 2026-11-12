@@ -3,7 +3,7 @@
 /* =======================================================================
    Design tokens
    The app is built on Bootstrap, but these tokens give it a calmer,
-   product-grade surface: soft layered fills, a single indigo accent,
+   product-grade surface: soft layered fills, a single deep blue accent,
    generous radii and low-contrast borders.
    ======================================================================= */
 
@@ -11,12 +11,12 @@
 [data-bs-theme='light'] {
   color-scheme: light;
 
-  --app-brand: #4f46e5;
-  --app-brand-rgb: 79, 70, 229;
-  --app-brand-hover: #4338ca;
-  --app-brand-active: #3730a3;
-  --app-brand-soft: rgba(79, 70, 229, 0.1);
-  --app-accent: #4f46e5;
+  --app-brand: #0747a6;
+  --app-brand-rgb: 7, 71, 166;
+  --app-brand-hover: #053b8c;
+  --app-brand-active: #042f73;
+  --app-brand-soft: rgba(7, 71, 166, 0.1);
+  --app-accent: #0747a6;
 
   --app-bg: #f5f6fa;
   --app-canvas-bg: #ffffff;
@@ -40,14 +40,14 @@
   --app-shadow-md:
     0 12px 24px -12px rgba(16, 24, 40, 0.18), 0 2px 6px -2px rgba(16, 24, 40, 0.06);
   --app-shadow-lg: 0 32px 64px -24px rgba(16, 24, 40, 0.28);
-  --app-ring: 0 0 0 3px rgba(79, 70, 229, 0.18);
+  --app-ring: 0 0 0 3px rgba(7, 71, 166, 0.18);
 
   /* Bootstrap variable overrides */
   --bs-primary: var(--app-brand);
   --bs-primary-rgb: var(--app-brand-rgb);
   --bs-link-color: var(--app-accent);
   --bs-link-color-rgb: var(--app-brand-rgb);
-  --bs-link-hover-color-rgb: 67, 56, 202;
+  --bs-link-hover-color-rgb: 5, 59, 140;
 
   --bs-body-bg: var(--app-surface);
   --bs-body-color: #101828;
@@ -83,12 +83,12 @@
 [data-bs-theme='dark'] {
   color-scheme: dark;
 
-  --app-brand: #4f46e5;
-  --app-brand-rgb: 79, 70, 229;
-  --app-brand-hover: #4338ca;
-  --app-brand-active: #3730a3;
-  --app-brand-soft: rgba(129, 140, 248, 0.16);
-  --app-accent: #a5b4fc;
+  --app-brand: #0747a6;
+  --app-brand-rgb: 7, 71, 166;
+  --app-brand-hover: #0c5fbf;
+  --app-brand-active: #0a54ab;
+  --app-brand-soft: rgba(12, 102, 228, 0.22);
+  --app-accent: #85b8ff;
 
   --app-bg: #070b13;
   --app-canvas-bg: #0f172a;
@@ -111,13 +111,13 @@
   --app-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --app-shadow-md: 0 16px 32px -16px rgba(0, 0, 0, 0.7), 0 2px 8px -2px rgba(0, 0, 0, 0.4);
   --app-shadow-lg: 0 40px 80px -32px rgba(0, 0, 0, 0.8);
-  --app-ring: 0 0 0 3px rgba(129, 140, 248, 0.28);
+  --app-ring: 0 0 0 3px rgba(133, 184, 255, 0.32);
 
   --bs-primary: var(--app-brand);
   --bs-primary-rgb: var(--app-brand-rgb);
   --bs-link-color: var(--app-accent);
-  --bs-link-color-rgb: 165, 180, 252;
-  --bs-link-hover-color-rgb: 199, 210, 254;
+  --bs-link-color-rgb: 133, 184, 255;
+  --bs-link-hover-color-rgb: 179, 212, 255;
 
   --bs-body-bg: var(--app-surface);
   --bs-body-color: #e6ebf4;

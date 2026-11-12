@@ -11,16 +11,23 @@ import { DiagramStore } from '../services/diagram-store';
       <p class="small text-body-secondary mb-0">Select an element to view properties</p>
     } @else {
       <div class="d-flex flex-column gap-3">
-        <div>
-          <label for="prop-name" class="form-label small mb-1">Name</label>
-          <input
-            id="prop-name"
-            type="text"
-            class="form-control form-control-sm"
-            [value]="selection().name"
-            (change)="onName($event)"
-          />
-        </div>
+        @if (store.readOnly()) {
+          <p class="form-text mb-0">Read only: you can inspect properties but not change them.</p>
+        }
+
+        @if (selection().kind !== 'connection' || !store.readOnly()) {
+          <div>
+            <label for="prop-name" class="form-label small mb-1">Name</label>
+            <input
+              id="prop-name"
+              type="text"
+              class="form-control form-control-sm"
+              [value]="selection().name"
+              [readonly]="store.readOnly()"
+              (change)="onName($event)"
+            />
+          </div>
+        }
 
         @if (selection().kind === 'shape') {
           @if (selection().availableParentGroups.length > 0) {
@@ -30,6 +37,7 @@ import { DiagramStore } from '../services/diagram-store';
                 id="prop-parent-group"
                 class="form-select form-select-sm"
                 [value]="selection().parentId"
+                [disabled]="store.readOnly()"
                 (change)="onParent($event)"
               >
                 <option value="">None</option>
@@ -46,6 +54,7 @@ import { DiagramStore } from '../services/diagram-store';
               id="prop-link"
               class="form-select form-select-sm"
               [value]="selection().linkedView"
+              [disabled]="store.readOnly()"
               (change)="onLink($event)"
             >
               <option value="">None</option>
@@ -63,11 +72,14 @@ import { DiagramStore } from '../services/diagram-store';
                 type="color"
                 class="form-control form-control-color form-control-sm"
                 [value]="selection().color"
+                [disabled]="store.readOnly()"
                 (change)="onColor($event)"
               />
-              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="diagram.resetColor()">
-                Reset
-              </button>
+              @if (!store.readOnly()) {
+                <button type="button" class="btn btn-sm btn-outline-secondary" (click)="diagram.resetColor()">
+                  Reset
+                </button>
+              }
             </div>
           </div>
         }
@@ -79,6 +91,7 @@ import { DiagramStore } from '../services/diagram-store';
               id="prop-type"
               class="form-select form-select-sm"
               [value]="selection().connType"
+              [disabled]="store.readOnly()"
               (change)="onType($event)"
             >
               @for (option of relationshipOptions; track option.value) {
@@ -95,11 +108,12 @@ import { DiagramStore } from '../services/diagram-store';
             rows="3"
             class="form-control form-control-sm"
             [value]="selection().doc"
+            [readonly]="store.readOnly()"
             (change)="onDoc($event)"
           ></textarea>
         </div>
 
-        @if (selection().kind === 'connection') {
+        @if (selection().kind === 'connection' && !store.readOnly()) {
           <div>
             <span class="form-label small mb-1 d-block">Bendpoints</span>
             <div class="d-flex gap-2">
@@ -124,7 +138,7 @@ import { DiagramStore } from '../services/diagram-store';
           </div>
         }
 
-        @if (selection().kind === 'shape' && selection().canCollapse) {
+        @if (selection().kind === 'shape' && selection().canCollapse && !store.readOnly()) {
           <div>
             <button
               type="button"
