@@ -6,6 +6,8 @@ import { NgbNavModule } from '@ng-bootstrap/ng-bootstrap/nav';
 import { PALETTE_CATEGORIES, RELATIONSHIP_OPTIONS } from '../models/archimate.models';
 import type { PaletteItem, RelationshipType } from '../models/archimate.models';
 import type { AiProviderSettings } from '../models/ai.models';
+import { TOGAF_DOMAINS, TOGAF_PHASES, findTogafPhase } from '../models/togaf.models';
+import type { TogafDomainId, TogafPhaseId } from '../models/togaf.models';
 import { AiDiagramService } from '../services/ai-diagram.service';
 import { DiagramCanvasService, type DragPayload } from '../services/diagram-canvas.service';
 import { DiagramStore } from '../services/diagram-store';
@@ -158,6 +160,35 @@ type PaletteTab = 'elements' | 'ai';
             <button type="button" ngbNavLink class="w-100 app-tab">AI Assistant</button>
             <ng-template ngbNavContent>
               <div class="h-100 overflow-auto app-scroll app-panel-body">
+                <div class="mb-2">
+                  <label class="form-label small mb-1" for="ai-phase">TOGAF ADM phase</label>
+                  <select
+                    id="ai-phase"
+                    class="form-select form-select-sm"
+                    aria-describedby="ai-phase-hint ai-artifacts-hint"
+                    (change)="onPhaseChange($event)"
+                  >
+                    @for (phase of phases; track phase.id) {
+                      <option [value]="phase.id" [selected]="phase.id === ai.context().phase">
+                        {{ phase.code }} — {{ phase.name }}
+                      </option>
+                    }
+                  </select>
+                  <p id="ai-phase-hint" class="form-text small mt-1 mb-0">{{ phasePurpose() }}</p>
+                  <p class="form-text small mb-0" id="ai-artifacts-hint">{{ phaseArtifacts() }}</p>
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label small mb-1" for="ai-domain">Architecture domain</label>
+                  <select id="ai-domain" class="form-select form-select-sm" (change)="onDomainChange($event)">
+                    @for (domain of domains; track domain.id) {
+                      <option [value]="domain.id" [selected]="domain.id === ai.context().domain">
+                        {{ domain.label }}
+                      </option>
+                    }
+                  </select>
+                </div>
+
                 <label class="form-label small mb-1" for="ai-prompt">Describe your diagram</label>
                 <textarea
                   id="ai-prompt"
@@ -165,7 +196,7 @@ type PaletteTab = 'elements' | 'ai';
                   rows="3"
                   [value]="prompt()"
                   aria-describedby="ai-prompt-hint"
-                  placeholder="e.g. A customer ordering process with a web portal, API and database"
+                  placeholder="e.g. Capability map for retail banking with the application services that realise it"
                   (input)="onPromptInput($event)"
                   (keydown)="onPromptKeydown($event)"
                 ></textarea>
@@ -257,6 +288,21 @@ type PaletteTab = 'elements' | 'ai';
                 @if (ai.plan(); as plan) {
                   <div class="border rounded-2 p-2 mt-2" aria-live="polite">
                     <p class="small fw-semibold mb-1">{{ plan.summary }}</p>
+                    @if (plan.rationale; as rationale) {
+                      <p class="small mb-1 d-flex flex-wrap gap-1">
+                        <span class="badge text-bg-light border fw-normal">{{ rationale.phase }}</span>
+                        @if (rationale.viewpoint) {
+                          <span class="badge text-bg-light border fw-normal">{{ rationale.viewpoint }}</span>
+                        }
+                      </p>
+                      @if (rationale.principles.length) {
+                        <ul class="small text-body-secondary mb-2 ps-3">
+                          @for (principle of rationale.principles; track $index) {
+                            <li>{{ principle }}</li>
+                          }
+                        </ul>
+                      }
+                    }
                     <ul class="small mb-2 ps-3">
                       @for (line of ai.preview(); track $index) {
                         <li>{{ line }}</li>
@@ -300,12 +346,18 @@ export class PaletteSidebar {
 
   protected readonly categories = PALETTE_CATEGORIES;
   protected readonly relationshipOptions = RELATIONSHIP_OPTIONS;
+  protected readonly phases = TOGAF_PHASES;
+  protected readonly domains = TOGAF_DOMAINS;
 
   protected readonly prompt = signal('');
   protected readonly settingsOpen = signal(false);
   protected readonly tab = signal<PaletteTab>('elements');
   protected readonly panelTitle = computed(() =>
     this.tab() === 'ai' ? 'AI Assistant' : 'Elements Palette',
+  );
+  protected readonly phasePurpose = computed(() => findTogafPhase(this.ai.context().phase).purpose);
+  protected readonly phaseArtifacts = computed(
+    () => `Artefacts: ${findTogafPhase(this.ai.context().phase).artifacts.join(' · ')}`,
   );
 
   protected readonly typeLabel = computed(
@@ -378,6 +430,14 @@ export class PaletteSidebar {
 
   protected onSettingInput(field: keyof AiProviderSettings, event: Event): void {
     this.ai.updateSettings({ [field]: (event.target as HTMLInputElement).value });
+  }
+
+  protected onPhaseChange(event: Event): void {
+    this.ai.updateContext({ phase: (event.target as HTMLSelectElement).value as TogafPhaseId });
+  }
+
+  protected onDomainChange(event: Event): void {
+    this.ai.updateContext({ domain: (event.target as HTMLSelectElement).value as TogafDomainId });
   }
 
   protected toggleSettings(): void {

@@ -1,13 +1,20 @@
 import { Service, computed, inject, signal } from '@angular/core';
 import { PALETTE_CATEGORIES, RELATIONSHIP_OPTIONS } from '../models/archimate.models';
-import { DEFAULT_AI_SETTINGS } from '../models/ai.models';
-import type { AiOp, AiPlan, AiProviderSettings } from '../models/ai.models';
+import { DEFAULT_AI_CONTEXT, DEFAULT_AI_SETTINGS } from '../models/ai.models';
+import type { AiContext, AiOp, AiPlan, AiProviderSettings } from '../models/ai.models';
 import type { DiagramShapeInfo } from '../models/diagram.models';
+import {
+  TOGAF_ARTIFACT_PLAYBOOK,
+  TOGAF_DEFAULT_PRINCIPLES,
+  findTogafDomain,
+  findTogafPhase,
+} from '../models/togaf.models';
 import { describePlan, elementStyleFor, parsePlan } from '../utils/ai-plan';
 import { DiagramCanvasService } from './diagram-canvas.service';
 import { DiagramStore } from './diagram-store';
 
 const STORAGE_KEY = 'easync.ai.settings';
+const CONTEXT_KEY = 'easync.ai.context';
 const REQUEST_TIMEOUT_MS = 60_000;
 const AUTO_LAYOUT_COLUMNS = 3;
 const AUTO_LAYOUT_CELL_WIDTH = 180;
@@ -28,11 +35,51 @@ const ELEMENT_CATALOG = PALETTE_CATEGORIES.flatMap((category) =>
 
 const RELATIONSHIP_CATALOG = RELATIONSHIP_OPTIONS.map((option) => option.value).join(', ');
 
-const SYSTEM_PROMPT = `You are the diagram assistant inside EAsync, an ArchiMate modelling tool.
-You change the diagram only by returning a JSON plan. Reply with JSON and nothing else.
+/** TOGAF vocabulary the assistant may say in "label", mapped to the ArchiMate type to model. */
+const TERMINOLOGY_MAP = `Business Capability->Capability, Value Stream / Value Stage->Value Stream, Business Service / Process Step->Business Process, Organization Unit / Team->Business Actor, Role->Business Role, Application / Application System / System->Application Component, Application Service->Application Service, Interface / API->Application Interface, Data Entity / Data Set->Data Object, Technology Platform / Environment / Server->Technology Node, Platform Software / Middleware / Database->System Software, Project / Initiative / Programme->Work Package, Transition Architecture / Transition State->Plateau, Architecture Principle / Constraint / Business Rule->Requirement, Stakeholder Concern->Stakeholder`;
+
+/** The TOGAF working practice the assistant must follow on every request. */
+const TOGAF_RULES = `TOGAF modelling rules:
+- Baseline and target: when the request evolves an existing landscape, keep the elements already on the canvas as the baseline and add the target state next to them. Never delete baseline elements unless the request asks for it.
+- Layered dependency direction: business on top, application in the middle, technology at the bottom. Technology elements serve applications; business elements are never served by nothing. Use serving, realization and access relationships to express the dependency, never plain association.
+- Capability-based planning: capabilities are the anchor. Business processes, business services and application services realise capabilities; application components serve business services; technology serves applications.
+- Portfolio hygiene: model one element per real capability, system or platform. Do not create an element per screen, feature or team.
+- Roadmap discipline: keep Work Packages, Plateaus and Implementation Events out of architecture views, and keep business, application and technology elements out of roadmap views.
+- Gap analysis: represent each difference between baseline and target with a Gap element associated to the baseline element it replaces and to the target element that closes it.
+- Motivation traceability: stakeholders, drivers, goals, requirements and principles belong in Motivation views, linked with influence, realization or association. Do not mix them into application or technology layers.
+- View size: a view should read as one artefact. Aim for 8 to 20 elements; summarise instead of dumping a full inventory.`;
+
+/** Builds the system prompt for one ADM phase and architecture domain. */
+function buildSystemPrompt(context: AiContext): string {
+  const phase = findTogafPhase(context.phase);
+  const domain = findTogafDomain(context.domain);
+  const recipes = TOGAF_ARTIFACT_PLAYBOOK.filter((entry) => entry.phase === phase.id)
+    .map((entry) => `- ${entry.artifact}: ${entry.recipe}`)
+    .join('\n');
+
+  return `You are a TOGAF-certified enterprise architect working inside EAsync, an ArchiMate 3.2 modelling tool.
+You produce ADM deliverables on an ArchiMate canvas. You change the canvas only by returning a JSON plan.
+Reply with JSON and nothing else.
+
+Working context
+- ADM phase: ${phase.code} - ${phase.name}
+- Phase purpose: ${phase.purpose}
+- Architecture domain: ${domain.label} (layers in scope: ${domain.layers.join(', ')})
+- Phase artefacts to expect: ${phase.artifacts.join(', ')}
+- Phase guidance: ${phase.guidance}
+- Domain guidance: ${domain.guidance}
+${recipes ? `\nArtefact recipes\n${recipes}\n` : ''}
+Governing principles (cite the ones your plan complies with):
+${TOGAF_DEFAULT_PRINCIPLES.map((principle) => `- ${principle}`).join('\n')}
+
+${TOGAF_RULES}
+
+Terminology: name elements with TOGAF wording, but "elementType" must always be an ArchiMate type from the catalog below.
+Use this mapping when the request uses TOGAF terms: ${TERMINOLOGY_MAP}.
+Names are title-case noun phrases with no numbering or verbs, for example "Customer Onboarding Capability" or "Order Management Service".
 
 JSON shape:
-{"summary":"one short sentence describing the change","ops":[...]}
+{"summary":"one short sentence describing the change","rationale":{"phase":"${phase.code} - ${phase.name}","viewpoint":"artefact or viewpoint name, e.g. Capability Map","principles":["the governing principle this plan complies with"]},"ops":[...]}
 
 Supported operations:
 {"op":"clearView"}
@@ -51,11 +98,12 @@ Rules:
 - Coordinates are canvas pixels: x grows to the right, y grows downwards. Omit x and y to let the app place elements automatically.
 - "parent" refers to a Grouping element that visually contains the element; omit it for top-level elements.
 - Composition and aggregation lines between a container and its children are hidden automatically, so do not add them for nested elements.
-- Only emit the operations the request needs. Return {"summary":"No changes","ops":[]} when nothing should change.
+- Only emit the operations the request needs. Return {"summary":"No changes","rationale":{"phase":"${phase.code} - ${phase.name}","viewpoint":"","principles":[]},"ops":[]} when nothing should change.
 - The canvas usually already has content. Treat every request as an incremental edit: add only what is missing, and reuse the ids shown in the diagram description for existing elements instead of recreating them.
 - Use {"op":"clearView"} only when the user explicitly asks to clear, wipe, reset or replace the whole diagram. Never clear the view just because the request introduces new layers or sections.
 - Never repeat an element that already exists with the same meaning; rename or move it instead.
 - Keep names short and in the language of the request.`;
+}
 
 /** Applies an assistant plan to the canvas. */
 @Service()
@@ -64,6 +112,7 @@ export class AiDiagramService {
   private readonly store = inject(DiagramStore);
 
   private readonly settingsSignal = signal<AiProviderSettings>(readSettings());
+  private readonly contextSignal = signal<AiContext>(readContext());
   private readonly busySignal = signal(false);
   private readonly errorSignal = signal<string | null>(null);
   private readonly planSignal = signal<AiPlan | null>(null);
@@ -71,6 +120,7 @@ export class AiDiagramService {
   private readonly noticeSignal = signal<string[]>([]);
 
   readonly settings = this.settingsSignal.asReadonly();
+  readonly context = this.contextSignal.asReadonly();
   readonly busy = this.busySignal.asReadonly();
   readonly error = this.errorSignal.asReadonly();
   readonly plan = this.planSignal.asReadonly();
@@ -88,6 +138,13 @@ export class AiDiagramService {
     writeSettings(next);
   }
 
+  /** Changes the ADM phase / architecture domain the assistant works from. */
+  updateContext(patch: Partial<AiContext>): void {
+    const next = { ...this.contextSignal(), ...patch };
+    this.contextSignal.set(next);
+    writeContext(next);
+  }
+
   /** Sends the prompt together with the current diagram description and stores the preview. */
   async generate(prompt: string): Promise<void> {
     const request = prompt.trim();
@@ -102,7 +159,7 @@ export class AiDiagramService {
     this.discardPlan();
     try {
       const reply = await this.requestPlan(request);
-      const plan = this.protectExistingDiagram(parsePlan(reply), request);
+      const plan = this.withRationale(this.protectExistingDiagram(parsePlan(reply), request));
       this.planSignal.set(plan);
       this.previewSignal.set(describePlan(plan.ops, this.labelsFor(plan.ops)));
     } catch (error) {
@@ -264,7 +321,19 @@ export class AiDiagramService {
     this.noticeSignal.set([
       'Kept the existing diagram. The assistant wanted to clear the canvas, but the request did not ask for that.',
     ]);
-    return ops.length ? { ...plan, ops } : { summary: plan.summary, ops: [] };
+    return ops.length ? { ...plan, ops } : { ...plan, ops: [] };
+  }
+
+  /**
+   * The preview always states the ADM phase the plan was produced against, even when the
+   * model omits the rationale block, so the user can see the TOGAF traceability.
+   */
+  private withRationale(plan: AiPlan): AiPlan {
+    const phase = findTogafPhase(this.contextSignal().phase);
+    const fallback = `${phase.code} - ${phase.name}`;
+    const rationale = plan.rationale;
+    if (!rationale) return { ...plan, rationale: { phase: fallback, viewpoint: '', principles: [] } };
+    return { ...plan, rationale: { ...rationale, phase: rationale.phase || fallback } };
   }
 
   private autoLayoutOrigin(shapes: DiagramShapeInfo[]): { x: number; y: number } {
@@ -353,10 +422,16 @@ export class AiDiagramService {
 
   private async requestPlan(prompt: string): Promise<string> {
     const { baseUrl, model, apiKey } = this.settingsSignal();
+    const context = this.contextSignal();
+    const phase = findTogafPhase(context.phase);
+    const domain = findTogafDomain(context.domain);
     const url = chatEndpoint(baseUrl);
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `${this.describeDiagram()}\n\nRequest: ${prompt}` },
+      { role: 'system', content: buildSystemPrompt(context) },
+      {
+        role: 'user',
+        content: `${this.describeDiagram()}\n\nADM phase: ${phase.code} - ${phase.name}. Architecture domain: ${domain.label}.\nRequest: ${prompt}`,
+      },
     ];
 
     const first = await this.post(url, apiKey, { model, messages, temperature: 0.2 });
@@ -469,5 +544,27 @@ function writeSettings(settings: AiProviderSettings): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   } catch {
     // Private browsing or a full quota: settings simply do not persist.
+  }
+}
+
+function readContext(): AiContext {
+  try {
+    const raw = localStorage.getItem(CONTEXT_KEY);
+    if (!raw) return { ...DEFAULT_AI_CONTEXT };
+    const parsed = JSON.parse(raw) as Partial<AiContext>;
+    return {
+      phase: findTogafPhase(parsed.phase ?? DEFAULT_AI_CONTEXT.phase).id,
+      domain: findTogafDomain(parsed.domain ?? DEFAULT_AI_CONTEXT.domain).id,
+    };
+  } catch {
+    return { ...DEFAULT_AI_CONTEXT };
+  }
+}
+
+function writeContext(context: AiContext): void {
+  try {
+    localStorage.setItem(CONTEXT_KEY, JSON.stringify(context));
+  } catch {
+    // Private browsing or a full quota: the context simply does not persist.
   }
 }

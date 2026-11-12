@@ -1,6 +1,6 @@
 import { PALETTE_CATEGORIES, RELATIONSHIP_OPTIONS } from '../models/archimate.models';
 import type { RelationshipType } from '../models/archimate.models';
-import type { AiOp, AiPlan } from '../models/ai.models';
+import type { AiOp, AiPlan, AiRationale } from '../models/ai.models';
 
 /** Styling of a palette element type, used to colour the shapes the assistant asks for. */
 export interface ElementStyle {
@@ -21,6 +21,120 @@ const ELEMENT_STYLES = PALETTE_CATEGORIES.flatMap((category) =>
 
 const RELATIONSHIP_TYPES = new Set<string>(RELATIONSHIP_OPTIONS.map((option) => option.value));
 
+/**
+ * TOGAF and plain-English type names mapped onto the palette. Model output uses
+ * TOGAF vocabulary ("Business Capability", "Technology Platform") while the
+ * canvas only knows ArchiMate element types.
+ */
+const ELEMENT_ALIASES: Record<string, string> = {
+  businesscapability: 'capability',
+  businesscapabilities: 'capability',
+  capabilitymap: 'capability',
+  valuechain: 'valuestream',
+  businessservice: 'businessprocess',
+  businessservices: 'businessprocess',
+  processstep: 'businessprocess',
+  organization: 'businessactor',
+  organizationunit: 'businessactor',
+  organizationalunit: 'businessactor',
+  department: 'businessactor',
+  team: 'businessactor',
+  actor: 'businessactor',
+  role: 'businessrole',
+  application: 'applicationcomponent',
+  applicationsystem: 'applicationcomponent',
+  applicationplatform: 'applicationcomponent',
+  applicationportfolio: 'applicationcomponent',
+  system: 'applicationcomponent',
+  interface: 'applicationinterface',
+  api: 'applicationinterface',
+  webservice: 'applicationinterface',
+  datasource: 'dataobject',
+  datastore: 'dataobject',
+  dataset: 'dataobject',
+  dataentity: 'dataobject',
+  dataentitydatacomponent: 'dataobject',
+  database: 'systemsoftware',
+  platformsoftware: 'systemsoftware',
+  platformservice: 'systemsoftware',
+  middleware: 'systemsoftware',
+  runtime: 'systemsoftware',
+  applicationruntime: 'systemsoftware',
+  containerruntime: 'systemsoftware',
+  operatingsystem: 'systemsoftware',
+  platform: 'technologynode',
+  technologyplatform: 'technologynode',
+  technologyenvironment: 'technologynode',
+  hostingenvironment: 'technologynode',
+  environment: 'technologynode',
+  server: 'technologynode',
+  host: 'technologynode',
+  cluster: 'technologynode',
+  gateway: 'network',
+  loadbalancer: 'network',
+  project: 'workpackage',
+  programme: 'workpackage',
+  program: 'workpackage',
+  initiative: 'workpackage',
+  transitionarchitecture: 'plateau',
+  transitionstate: 'plateau',
+  architectureprinciple: 'requirement',
+  principle: 'requirement',
+  constraint: 'requirement',
+  businessrule: 'requirement',
+  stakeholderconcern: 'stakeholder',
+  asset: 'resource',
+  revenue: 'product',
+  offering: 'product',
+};
+
+/** TOGAF relationship phrasing mapped onto ArchiMate relationship types. */
+const RELATIONSHIP_ALIASES: Record<string, RelationshipType> = {
+  serves: 'serving',
+  servesto: 'serving',
+  servingrelationship: 'serving',
+  accesses: 'access',
+  accessrelationship: 'access',
+  uses: 'access',
+  usesdatafrom: 'access',
+  realizes: 'realization',
+  realise: 'realization',
+  realises: 'realization',
+  realizesrelationship: 'realization',
+  implements: 'realization',
+  delivers: 'realization',
+  assignedto: 'assignment',
+  assignmentrelationship: 'assignment',
+  allocatedto: 'assignment',
+  composedof: 'composition',
+  compositionrelationship: 'composition',
+  partof: 'composition',
+  contains: 'composition',
+  aggregates: 'aggregation',
+  aggregationrelationship: 'aggregation',
+  includes: 'aggregation',
+  groups: 'aggregation',
+  triggers: 'triggering',
+  triggeringrelationship: 'triggering',
+  precedes: 'triggering',
+  followedby: 'triggering',
+  influences: 'influence',
+  influencerelationship: 'influence',
+  affects: 'influence',
+  specializes: 'specialization',
+  specialises: 'specialization',
+  specializationrelationship: 'specialization',
+  isa: 'specialization',
+  flowsto: 'flow',
+  flows: 'flow',
+  flowsinto: 'flow',
+  flowrelationship: 'flow',
+  sends: 'flow',
+  associatedwith: 'association',
+  associationrelationship: 'association',
+  relatedto: 'association',
+};
+
 /** Lowercases and strips separators so `Application Component` matches `applicationComponent`. */
 export function normalizeKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -30,7 +144,13 @@ export function normalizeKey(value: string): string {
 export function elementStyleFor(elementType?: string | null, layer?: string | null): ElementStyle {
   const typeKey = normalizeKey(elementType ?? '');
   const layerKey = normalizeKey(layer ?? '');
-  const candidates = typeKey ? ELEMENT_STYLES.filter((entry) => entry.keys.includes(typeKey)) : [];
+  const aliasKey = ELEMENT_ALIASES[typeKey];
+  const candidates = typeKey
+    ? ELEMENT_STYLES.filter(
+        (entry) =>
+          entry.keys.includes(typeKey) || (!!aliasKey && entry.keys.includes(aliasKey)),
+      )
+    : [];
   const match =
     candidates.find((entry) => layerKey && entry.layer === layerKey) ?? candidates[0] ?? null;
   if (match) return match.style;
@@ -45,9 +165,9 @@ export function elementStyleFor(elementType?: string | null, layer?: string | nu
 
 /** Falls back to an association so a slightly off type name never loses a relationship. */
 export function normalizeRelationshipType(value: string | null): RelationshipType {
-  const key = (value ?? '').trim().toLowerCase();
+  const key = normalizeKey(value ?? '');
   if (RELATIONSHIP_TYPES.has(key)) return key as RelationshipType;
-  return 'association';
+  return RELATIONSHIP_ALIASES[key] ?? 'association';
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -69,6 +189,31 @@ function asNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+/** Reads the TOGAF traceability block; returns null when the model omitted it. */
+function parseRationale(value: unknown): AiRationale | null {
+  const record = asRecord(value);
+  if (!record) return null;
+
+  const phase =
+    asString(record['phase']) ?? asString(record['admPhase']) ?? asString(record['adm']) ?? '';
+  const viewpoint =
+    asString(record['viewpoint']) ??
+    asString(record['artifact']) ??
+    asString(record['artefact']) ??
+    '';
+
+  const rawPrinciples = Array.isArray(record['principles'])
+    ? record['principles']
+    : [record['principles']];
+  const principles = rawPrinciples
+    .map((entry) => asString(entry))
+    .filter((entry): entry is string => !!entry)
+    .slice(0, 6);
+
+  if (!phase && !viewpoint && !principles.length) return null;
+  return { phase, viewpoint, principles };
 }
 
 /** Pulls the first JSON object out of a reply that may be wrapped in prose or a code fence. */
@@ -232,6 +377,10 @@ export function parsePlan(reply: string): AiPlan {
 
   return {
     summary: asString(record['summary']) ?? 'Proposed changes',
+    rationale:
+      parseRationale(record['rationale']) ??
+      parseRationale(record['togaf']) ??
+      parseRationale(record['traceability']),
     ops,
   };
 }
