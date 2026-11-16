@@ -103,3 +103,11 @@ Angular CLI does not come with an end-to-end testing framework by default. You c
 ## Additional Resources
 
 For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+
+## User manual
+
+The end-user guide is a standalone page at [`public/manual.html`](public/manual.html), so a build
+publishes it to `dist/easync/browser/manual.html` and it is served at
+`https://ia.unimas.my/easync/manual.html` (locally: `http://localhost:4200/manual.html`). The app
+links to it with the relative URL `manual.html`, which resolves under the `/easync/` base href.
+Links live on the sign-in card and in the projects top bar (book icon, opens in a new tab).

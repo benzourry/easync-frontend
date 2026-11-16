@@ -23,6 +23,17 @@ import { ThemeService } from '../services/theme.service';
       }
 
       <div class="ms-auto d-flex align-items-center gap-2 flex-shrink-0">
+        <a
+          class="btn btn-sm btn-light app-icon-btn"
+          href="manual.html"
+          target="_blank"
+          rel="noopener"
+          aria-label="User manual"
+          title="User manual"
+        >
+          <svg class="app-icon" aria-hidden="true"><use href="icons.svg#book"></use></svg>
+        </a>
+
         <button
           type="button"
           class="btn btn-sm btn-light app-icon-btn"

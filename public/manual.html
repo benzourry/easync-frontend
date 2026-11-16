@@ -1,0 +1,2871 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EAsync — User Manual</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS with Typography Plugin -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Mermaid JS for diagrams -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    </script>
+
+    <style>
+        /* Custom scrollbar for sidebar */
+        .sidebar-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .sidebar-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .sidebar-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .sidebar-scroll:hover::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+        }
+        
+        /* Active state for sidebar links */
+        .nav-link.active {
+            color: #2563eb;
+            font-weight: 600;
+            background-color: #eff6ff;
+            border-right: 3px solid #2563eb;
+        }
+    </style>
+</head>
+<body class="bg-white text-slate-800 font-sans antialiased flex">
+
+    <!-- Mobile Header -->
+    <div class="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-50 flex items-center justify-between px-4 shadow-sm">
+        <div class="font-bold text-lg text-slate-800 tracking-tight flex items-center gap-2">
+            <img src="https://ia.unimas.my/easync/easync-logo.png" alt="EAsync Logo" class="h-6 w-auto" onerror="this.style.display='none'">
+            Docs
+        </div>
+        <button id="mobile-menu-btn" class="p-2 text-slate-500 hover:text-slate-800 focus:outline-none rounded-md hover:bg-slate-100 transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Mobile Sidebar Overlay -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/50 z-40 hidden lg:hidden backdrop-blur-sm transition-opacity"></div>
+
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar" class="fixed top-0 left-0 z-50 h-screen w-72 bg-slate-50 border-r border-slate-200 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col">
+        <div class="h-16 flex items-center px-6 border-b border-slate-200 bg-white min-h-[4rem]">
+            <div class="font-bold text-xl text-slate-800 tracking-tight flex items-center gap-2">
+                <img src="https://ia.unimas.my/easync/easync-logo.png" alt="EAsync Logo" class="h-8 w-auto" onerror="this.style.display='none'">
+                Docs
+            </div>
+            <button id="close-sidebar-btn" class="ml-auto lg:hidden p-1 text-slate-500 hover:text-slate-800 rounded-md hover:bg-slate-200 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto sidebar-scroll py-4">
+            <div class="px-6 mb-4">
+                <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Table of contents</h3>
+            </div>
+            <nav class="flex flex-col text-sm" id="toc-nav">
+                <a href="#1-introduction" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">1. Introduction</a>
+                <a href="#2-before-you-start" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">2. Before you start</a>
+                <a href="#3-key-concepts" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">3. Key concepts</a>
+                <a href="#4-signing-in" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">4. Signing in</a>
+                <a href="#5-projects" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">5. Projects</a>
+                <a href="#6-project-members-and-roles" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">6. Project members and roles</a>
+                <a href="#7-diagrams" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">7. Diagrams</a>
+                <a href="#8-the-editor-workspace" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">8. The editor workspace</a>
+                <a href="#9-drawing-and-editing-a-diagram" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">9. Drawing and editing a diagram</a>
+                <a href="#10-element-properties-and-metadata" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">10. Element properties & metadata</a>
+                <a href="#11-views-diagram-catalogue-and-matrix" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">11. Views: Diagram, Catalogue, Matrix</a>
+                <a href="#12-viewpoints-and-frameworks" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">12. Viewpoints and frameworks</a>
+                <a href="#13-model-validation-problems" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">13. Model validation (Problems)</a>
+                <a href="#14-plateau-gap-analysis-and-work-packages" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">14. Plateau gap analysis</a>
+                <a href="#15-version-history-and-revisions" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">15. Version history and revisions</a>
+                <a href="#16-the-ai-assistant" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">16. The AI Assistant</a>
+                <a href="#17-import-and-export" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">17. Import and export</a>
+                <a href="#18-saving-autosave-and-conflicts" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">18. Saving, autosave and conflicts</a>
+                <a href="#19-language-and-theme" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">19. Language and theme</a>
+                <a href="#20-keyboard-shortcuts" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">20. Keyboard shortcuts</a>
+                <a href="#21-troubleshooting-and-faq" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">21. Troubleshooting and FAQ</a>
+                
+                <div class="px-6 mt-6 mb-2">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Appendices</h3>
+                </div>
+                <a href="#appendix-a--role-permission-matrix" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">A. Role permission matrix</a>
+                <a href="#appendix-b--element-palette-reference" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">B. Element palette reference</a>
+                <a href="#appendix-c--relationship-reference" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">C. Relationship reference</a>
+                <a href="#appendix-d--validation-codes" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">D. Validation codes</a>
+                <a href="#appendix-e--deployment-and-administration" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">E. Deployment and administration</a>
+                <a href="#appendix-f--glossary" class="nav-link block py-2 px-6 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">F. Glossary</a>
+            </nav>
+        </div>
+        
+        <div class="p-4 border-t border-slate-200 text-xs text-slate-400 bg-white">
+            Version 1.0 · Angular 22 build
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 lg:ml-72 pt-16 lg:pt-0 min-h-screen">
+        <div class="max-w-4xl mx-auto px-6 py-12 lg:px-12 lg:py-16">
+            
+            <!-- Document Body using Tailwind Typography plugin (.prose) -->
+            <article class="prose prose-slate prose-primary max-w-none prose-headings:scroll-mt-24 prose-a:text-primary-600 hover:prose-a:text-primary-700 prose-img:rounded-xl">
+                
+                <h1 class="text-4xl font-extrabold tracking-tight text-slate-900 mb-2">EAsync — User Manual</h1>
+                <p class="lead text-xl text-slate-600 mt-0 font-semibold">Enterprise architecture modelling in the browser</p>
+                <p class="text-sm text-slate-500 font-medium">Version 1.0 · Applies to the EAsync web client (Angular 22 build)</p>
+                
+                <hr class="my-8 border-slate-200">
+
+                <section id="1-introduction">
+                    <h2>1. Introduction</h2>
+                    <p>EAsync is a browser-based enterprise architecture modelling tool. It lets an architecture team build a single ArchiMate 3.2 model of an organisation — capabilities, business processes, applications, technology, motivation and migration planning — and then present that one model through several different views:</p>
+                    <ul>
+                        <li><strong>Diagram views</strong> — free-form ArchiMate drawings on a canvas.</li>
+                        <li><strong>Catalogue views</strong> — a sortable, exportable table of every element in scope.</li>
+                        <li><strong>Matrix views</strong> — a layer-by-layer relationship grid.</li>
+                    </ul>
+                    <p>Because views read from one shared model, renaming an element, changing its type, or adding an attribute in one place is reflected everywhere that element appears.</p>
+                    
+                    <p>On top of the model, EAsync provides:</p>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Capability</th>
+                                    <th>What it gives you</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Frameworks</td>
+                                    <td>ArchiMate 3.2 viewpoints plus TOGAF ADM and MyGovEA framing that steer the palette and the assistant</td>
+                                </tr>
+                                <tr>
+                                    <td>Validation</td>
+                                    <td>Continuous checking of relationships against ArchiMate 3.2 rules, with an exportable report</td>
+                                </tr>
+                                <tr>
+                                    <td>Migration planning</td>
+                                    <td>Baseline → transition → target gap analysis and TOGAF work packages</td>
+                                </tr>
+                                <tr>
+                                    <td>Version history</td>
+                                    <td>Automatic saves plus named snapshots you can preview and restore</td>
+                                </tr>
+                                <tr>
+                                    <td>AI Assistant</td>
+                                    <td>Prompt-driven model changes that you review as a plan before anything is applied</td>
+                                </tr>
+                                <tr>
+                                    <td>Interoperability</td>
+                                    <td>Import and export <code>.archimate</code> exchange files, PNG and SVG images, CSV reports</td>
+                                </tr>
+                                <tr>
+                                    <td>Collaboration</td>
+                                    <td>Project membership with Owner / Editor / Viewer roles</td>
+                                </tr>
+                                <tr>
+                                    <td>Bilingual UI</td>
+                                    <td>English and Bahasa Malaysia</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>Who this manual is for</h3>
+                    <ul>
+                        <li><strong>Enterprise architects</strong> who will build and maintain models.</li>
+                        <li><strong>Business and solution architects</strong> who contribute views for their domain.</li>
+                        <li><strong>Architecture reviewers and stakeholders</strong> who only need to read, validate and export.</li>
+                        <li><strong>Administrators</strong> who deploy the client and connect it to the API (Appendix E).</li>
+                    </ul>
+
+                    <h3>How to read it</h3>
+                    <p>If you are new to EAsync, read chapters 2–4 and then walk through chapters 5–9 in order. After that, read the chapter for the feature you need. The appendices are reference material: permissions, the element palette, relationship rules, validation codes, deployment and a glossary.</p>
+                    
+                    <blockquote>
+                        <strong>Convention used in this manual.</strong> UI labels are written in <strong>bold</strong> exactly as they appear on screen, for example <strong>Save</strong>, <strong>Elements</strong>, <strong>Viewpoint</strong>. Keyboard keys are written as <code>Ctrl</code> + <code>Z</code>; on macOS the same shortcuts work with <code>Cmd</code> in place of <code>Ctrl</code> unless stated otherwise.
+                    </blockquote>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="2-before-you-start">
+                    <h2>2. Before you start</h2>
+                    <h3>2.1 Browser requirements</h3>
+                    <p>EAsync is a modern single-page application. Use a current version of one of:</p>
+                    <ul>
+                        <li>Google Chrome or Microsoft Edge (recommended)</li>
+                        <li>Mozilla Firefox</li>
+                        <li>Safari 16 or later</li>
+                    </ul>
+                    <p>The client needs:</p>
+                    <ul>
+                        <li><strong>JavaScript enabled</strong> — the application will not run without it.</li>
+                        <li><strong>Canvas rendering</strong> — the diagram editor draws with the HTML canvas element, so hardware acceleration should be left on for large diagrams.</li>
+                        <li><strong>Cookies/local storage</strong> — the sign-in session and your language and theme preferences are kept in browser storage. Using a private window works, but preferences are discarded when you close it.</li>
+                        <li><strong>Network access to the EAsync API</strong> — the client talks to a separate API service; if that service is unreachable, sign-in and saving will fail (see Chapter 21).</li>
+                    </ul>
+
+                    <h3>2.2 Accounts</h3>
+                    <p>You need an EAsync account. Accounts are created by whoever administers your EAsync deployment and are matched to the sign-in providers that deployment has enabled. There is no self-service registration screen in the client.</p>
+
+                    <h3>2.3 What you should know first</h3>
+                    <p>EAsync assumes you understand the basics of the ArchiMate 3.2 language: layers, elements and relationship types. If you are new to ArchiMate, the palette in Appendix B and the relationship reference in Appendix C are a compact primer. You do <strong>not</strong> need to know TOGAF to use the tool, but the TOGAF-aware features (the AI assistant's ADM phase selector and the work-package grouping in the plateau planner) assume you do.</p>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="3-key-concepts">
+                    <h2>3. Key concepts</h2>
+                    <p>Understanding these seven ideas makes the rest of the manual straightforward.</p>
+                    
+                    <div class="my-8 p-4 bg-slate-50 rounded-xl border border-slate-200 overflow-x-auto w-full">
+                        <div class="mermaid min-w-[700px] flex justify-center text-sm">
+                        graph TD
+                            P["Project<br/>(name, framework, members)"] --> D["Diagram<br/>(one model, many views)"]
+                            D --> V1["View: Diagram"]
+                            D --> V2["View: Catalogue"]
+                            D --> V3["View: Matrix"]
+                            D --> M["Model<br/>(elements + relationships)"]
+                            V1 --> M
+                            V2 --> M
+                            V3 --> M
+                            M --> E["Element<br/>(type, layer, name, plateau, properties)"]
+                            M --> R["Relationship<br/>(type + direction)"]
+                            D --> RV["Revisions<br/>(auto saves + named snapshots)"]
+                        </div>
+                    </div>
+
+                    <h3>Project</h3>
+                    <p>A container that groups related diagrams and the people who work on them. Each project has a <strong>name</strong>, an optional <strong>description</strong>, and a <strong>framework</strong> (TOGAF or MyGovEA). The framework decides which phases, principles and artefacts guide the assistant in that project.</p>
+
+                    <h3>Diagram</h3>
+                    <p>The unit you open in the editor. A diagram is <em>not</em> one picture — it is a <strong>model</strong> plus one or more <strong>views</strong> over that model. When you create a diagram you give it a name; you then add views inside it.</p>
+
+                    <h3>View</h3>
+                    <p>A presentation of the model. Three content types exist:</p>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Content type</th>
+                                    <th>Purpose</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Diagram</strong></td>
+                                    <td>A drawing you lay out on the canvas</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Catalogue</strong></td>
+                                    <td>A table of elements with sortable columns and CSV export</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Matrix</strong></td>
+                                    <td>A grid crossing two layers, marking where relationships exist</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Every view can carry a <strong>viewpoint</strong>, which narrows what the view shows and what the palette offers.</p>
+
+                    <h3>Model element</h3>
+                    <p>A thing in your architecture — a capability, a business process, an application component, a node, a goal. Each element has an <strong>ArchiMate type</strong>, a <strong>layer</strong>, a <strong>name</strong>, and optional metadata (domain, plateau, lifecycle state, owner, classification, reference model, reference code, custom properties). The same element can appear on many diagram views; changing its properties changes all of them.</p>
+
+                    <h3>Relationship</h3>
+                    <p>A typed, directed link between two elements — for example <em>Application Component</em> <strong>serving</strong> <em>Business Service</em>. Relationship types available in EAsync are listed in Appendix C.</p>
+
+                    <h3>Plateau</h3>
+                    <p>A point in the migration timeline: <strong>Baseline</strong> (today), <strong>Transition</strong> (an intermediate state), <strong>Target</strong> (the future state). Tagging elements with a plateau is what makes the gap analysis and roadmap features work.</p>
+
+                    <h3>Revision</h3>
+                    <p>A saved state of the whole diagram. EAsync records <strong>automatic</strong> revisions as you work and lets you record <strong>named snapshots</strong> at meaningful moments.</p>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="4-signing-in">
+                    <h2>4. Signing in</h2>
+                    <h3>4.1 The sign-in page</h3>
+                    <p>Open the EAsync address your administrator gave you (for example <code>https://ia.unimas.my/easync/</code>). You are redirected to the <strong>Sign in</strong> page.</p>
+                    <ol>
+                        <li>The page lists one button per sign-in provider enabled for your deployment, each labelled <strong>Continue with</strong> <em>provider name</em> (for example "Continue with Microsoft").</li>
+                        <li>Choose the provider you use for your organisation's account.</li>
+                        <li>You are handed to that provider to authenticate. After you approve access, you return to EAsync at the callback address and land on <strong>Projects</strong>.</li>
+                    </ol>
+                    <p>EAsync never sees your provider password. It receives a short-lived hand-off token, exchanges it for its own session, and keeps that session in browser storage.</p>
+
+                    <h3>4.2 If sign-in fails</h3>
+                    <p>The sign-in page shows a message when the provider returns without a usable session:</p>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Message</th>
+                                    <th>Meaning</th>
+                                    <th>What to do</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Your session expired. Please sign in again.</strong></td>
+                                    <td>The hand-off token was already used or timed out</td>
+                                    <td>Sign in again from the button</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Your account has no email address.</strong></td>
+                                    <td>The provider did not release an email address</td>
+                                    <td>Ask your provider administrator to release the email claim, or use another provider</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>That sign-in provider is not supported.</strong></td>
+                                    <td>The provider is not enabled for EAsync</td>
+                                    <td>Use one of the listed providers</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Sign-in failed (code)</strong></td>
+                                    <td>An unrecognised error code</td>
+                                    <td>Note the code and pass it to your administrator</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>4.3 Developer sign-in</h3>
+                    <p>Development builds additionally show a <strong>Developer sign-in</strong> form (email + display name) that issues a session directly. It only works when the API has developer login enabled, and it is never available in a production build. Use it for local testing, not for real work.</p>
+
+                    <h3>4.4 Signing out</h3>
+                    <p>Use <strong>Sign out</strong> in the top-right of the editor header, or the account menu on smaller screens (<strong>More actions</strong>). Signing out clears the session from the browser and revokes it on the server.</p>
+
+                    <h3>4.5 Sessions that expire</h3>
+                    <p>If your session expires while you are working, the next request fails and you are returned to the sign-in page with the "session expired" message. <strong>Unsaved canvas changes are lost</strong> when this happens, so save deliberately before long breaks (see Chapter 18).</p>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="5-projects">
+                    <h2>5. Projects</h2>
+                    <p>After signing in you land on <strong>Projects</strong>, the list of every project you are a member of.</p>
+                    
+                    <h3>5.1 Reading the project list</h3>
+                    <p>Each project is a card showing:</p>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Meaning</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Name</strong></td>
+                                    <td>The project name</td>
+                                </tr>
+                                <tr>
+                                    <td>Role badge</td>
+                                    <td><strong>OWNER</strong> (blue), <strong>EDITOR</strong> (light blue) or <strong>VIEWER</strong> (grey) — your role in that project</td>
+                                </tr>
+                                <tr>
+                                    <td>Description</td>
+                                    <td>The project description, if one was given</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Framework</strong></td>
+                                    <td>The project's framework, shown by short name (<strong>TOGAF</strong> or <strong>MyGovEA</strong>)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Diagrams</strong></td>
+                                    <td>How many diagrams the project contains</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Members</strong></td>
+                                    <td>How many people have access</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Updated</strong></td>
+                                    <td>When the project was last changed</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>5.2 Creating a project</h3>
+                    <ol>
+                        <li>Select <strong>New project</strong>.</li>
+                        <li>Enter a <strong>Name</strong> (required).</li>
+                        <li>Choose a <strong>Framework</strong> — TOGAF or MyGovEA. The form explains that the framework decides which phases, principles and artefacts guide the assistant. You can change it later with <strong>Edit</strong>.</li>
+                        <li>Optionally enter a <strong>Description</strong>.</li>
+                        <li>Confirm. You become the project's <strong>Owner</strong> and it appears at the top of your list.</li>
+                    </ol>
+
+                    <h3>5.3 Opening a project</h3>
+                    <p>Select <strong>Open</strong> on the card (or select the card's title). The project page lists its diagrams and its members — see Chapter 7.</p>
+
+                    <h3>5.4 Editing a project</h3>
+                    <p>Select <strong>Edit</strong> on the card. You can change the name, the framework and the description. <strong>Edit</strong> is available to Owners and Editors, not to Viewers.</p>
+
+                    <h3>5.5 Deleting a project</h3>
+                    <p>Select <strong>Delete</strong> on the card. Only an <strong>Owner</strong> can delete a project. EAsync asks you to confirm, and warns that deletion removes:</p>
+                    <ul>
+                        <li>every diagram in the project,</li>
+                        <li>every view inside those diagrams,</li>
+                        <li>every revision recorded for them,</li>
+                    </ul>
+                    <p>for <strong>every</strong> member, permanently. There is no undo and no recycle bin. Export anything you may need first (Chapter 17).</p>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="6-project-members-and-roles">
+                    <h2>6. Project members and roles</h2>
+                    <p>Open a project to manage who can work on it. The <strong>Members</strong> list sits below the diagram list.</p>
+
+                    <h3>6.1 The three roles</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Role</th>
+                                    <th>Typical use</th>
+                                    <th>Can do</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Owner</strong></td>
+                                    <td>Project lead / chief architect</td>
+                                    <td>Everything an Editor can do, plus manage members, change roles, remove members, edit and delete the project</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Editor</strong></td>
+                                    <td>Architects and analysts</td>
+                                    <td>Create, edit and delete diagrams, edit the model, record snapshots, use the assistant</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Viewer</strong></td>
+                                    <td>Reviewers and stakeholders</td>
+                                    <td>Open diagrams in read-only mode, inspect properties, validate, view catalogue and matrix views, export</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Appendix A gives the complete permission matrix.</p>
+
+                    <h3>6.2 Inviting a member</h3>
+                    <ol>
+                        <li>In the <strong>Members</strong> section, enter the person's <strong>Email</strong>.</li>
+                        <li>Choose a <strong>Role</strong> — <strong>Editor</strong> (default) or <strong>Viewer</strong>.</li>
+                        <li>Confirm the invitation.</li>
+                    </ol>
+                    <p>The invitee appears in the list immediately with a <strong>Not signed in yet</strong> badge. Their email is hidden from other members while the invitation is pending. The invitation is filled in automatically the first time that person signs in with a matching email address — there is no separate acceptance email to chase.</p>
+
+                    <h3>6.3 Changing a member's role</h3>
+                    <p>An <strong>Owner</strong> selects the role control next to a member and picks <strong>Editor</strong> or <strong>Viewer</strong>. The change takes effect on that member's next request. Demoting an Editor to Viewer does not discard their work; it only prevents further edits.</p>
+
+                    <h3>6.4 Removing a member</h3>
+                    <p>An <strong>Owner</strong> selects <strong>Remove</strong>. A two-step confirmation (<strong>Remove this member?</strong>) guards the action. Removing a member revokes their access immediately. Their earlier saves remain part of the diagram's history.</p>
+
+                    <h3>6.5 What non-owners see</h3>
+                    <p>Editors and Viewers see the member list and their own role badge, but no role controls and no invite form. The <strong>Members</strong> section becomes a read-only roster.</p>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="7-diagrams">
+                    <h2>7. Diagrams</h2>
+                    <p>A diagram is the working container: one model, one or more views, and a shared version history.</p>
+
+                    <h3>7.1 The project page</h3>
+                    <p>Select <strong>Open</strong> on a project card. The page shows:</p>
+                    <ul>
+                        <li>A breadcrumb <strong>All projects</strong> that returns you to the list.</li>
+                        <li>The project name and your role badge.</li>
+                        <li>The project description.</li>
+                        <li><strong>New diagram</strong> — present only if you can edit the project.</li>
+                        <li>The list of diagrams.</li>
+                        <li>The <strong>Members</strong> section (Chapter 6).</li>
+                    </ul>
+
+                    <h3>7.2 Reading a diagram card</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Meaning</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Views</strong></td>
+                                    <td>How many views the diagram holds</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Version</strong></td>
+                                    <td>The current version number, incremented on every save</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Updated</strong></td>
+                                    <td>When the diagram was last saved</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>By</strong></td>
+                                    <td>Who saved it last</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Open</strong></td>
+                                    <td>Open the diagram in the editor</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Delete</strong></td>
+                                    <td>Remove the diagram and its history</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>7.3 Creating a diagram</h3>
+                    <ol>
+                        <li>Select <strong>New diagram</strong>.</li>
+                        <li>Enter a <strong>Name</strong> for the diagram (this is the container name, not a view name).</li>
+                        <li>Confirm.</li>
+                    </ol>
+                    <p>The diagram is created with a starter view, and the editor opens. Views are added later from inside the editor (Chapter 11).</p>
+                    <blockquote>
+                        <strong>Name it for the subject, not the picture.</strong> A good diagram name describes the architecture it holds — "Customer Onboarding Architecture" — because it becomes the model that all of its views share.
+                    </blockquote>
+
+                    <h3>7.4 Opening a diagram</h3>
+                    <p>Select <strong>Open</strong>. The editor loads the diagram, its views and its revision metadata. If your role is <strong>Viewer</strong>, the editor opens in read-only mode and shows the <strong>Read only</strong> badge next to the diagram name.</p>
+
+                    <h3>7.5 Deleting a diagram</h3>
+                    <p>Select <strong>Delete</strong> on the diagram card and confirm. The diagram, every view inside it, and every revision are removed permanently. Export an <code>.archimate</code> file first if the diagram has any ongoing value (Chapter 17).</p>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="8-the-editor-workspace">
+                    <h2>8. The editor workspace</h2>
+                    <p>The editor is a full-window workspace. Its regions are consistent: chrome across the top, a tools panel on the left, the work surface in the middle, and an information panel on the right.</p>
+
+                    <div class="my-8 p-4 bg-slate-50 rounded-xl border border-slate-200 overflow-x-auto w-full">
+                        <div class="mermaid min-w-[750px] flex justify-center text-sm">
+                        graph LR
+                            subgraph Header["Header bar"]
+                                H1["Back to project · Diagram name · Save status<br/>Undo / Redo · Save · Revisions · Import · Clear · Export"]
+                            end
+                            subgraph Body["Work surface"]
+                                PL["Palette sidebar<br/><br/>Elements tab<br/>AI Assistant tab"]
+                                CV["Canvas / Catalogue / Matrix"]
+                                EX["Explorer sidebar<br/><br/>Explorer · Properties · Problems"]
+                            end
+                            Header --> Body
+                        </div>
+                    </div>
+
+                    <h3>8.1 The header bar</h3>
+                    <p>The header is your control strip. From left to right:</p>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Control</th>
+                                    <th>Purpose</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Back to project</strong> arrow</td>
+                                    <td>Returns to the project page (you are warned about unsaved changes)</td>
+                                </tr>
+                                <tr>
+                                    <td>Palette toggle (small screens)</td>
+                                    <td>Opens the Elements / AI Assistant panel as an overlay</td>
+                                </tr>
+                                <tr>
+                                    <td>EAsync logo</td>
+                                    <td>Non-interactive branding</td>
+                                </tr>
+                                <tr>
+                                    <td>Diagram name</td>
+                                    <td>The name entered when the diagram was created</td>
+                                </tr>
+                                <tr>
+                                    <td>Save status</td>
+                                    <td><strong>Read only</strong>, or one of <strong>All changes saved</strong>, <strong>Unsaved changes</strong>, <strong>Saving…</strong>, <strong>Save failed</strong></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>EN / BM</strong></td>
+                                    <td>Switches the interface language (Chapter 19)</td>
+                                </tr>
+                                <tr>
+                                    <td>Sun / moon icon</td>
+                                    <td>Switches between light and dark theme (Chapter 19)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Undo</strong> / <strong>Redo</strong></td>
+                                    <td>Step backwards and forwards through your edits; greyed out when there is nothing to undo or redo</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Save</strong></td>
+                                    <td>Forces an immediate save; shows a spinner while saving. The tooltip reads <strong>Save now (autosave is on)</strong></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Revisions</strong></td>
+                                    <td>Opens version history (Chapter 15)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Import</strong></td>
+                                    <td>Loads an <code>.archimate</code> file (Chapter 17)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Clear</strong></td>
+                                    <td>Empties the canvas and the model (Chapter 9.9)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Export PNG</strong></td>
+                                    <td>Downloads the active view as a PNG image</td>
+                                </tr>
+                                <tr>
+                                    <td>Name and initials avatar</td>
+                                    <td>Identifies the signed-in account</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Saving, undo, import, clear and export are hidden or disabled in read-only mode.</p>
+                    <p>On screens narrower than the medium breakpoint the secondary actions collapse into a <strong>More actions</strong> menu containing <strong>Revisions</strong>, <strong>Import</strong>, <strong>Export PNG</strong>, <strong>Export SVG</strong>, <strong>Export ArchiMate</strong>, <strong>Clear diagram</strong>, your account details and <strong>Sign out</strong>.</p>
+
+                    <h3>8.2 The palette sidebar (left)</h3>
+                    <p>The palette has two tabs: <strong>Elements</strong> and <strong>AI Assistant</strong>. The panel title follows the active tab.</p>
+                    <p><strong>Elements tab</strong></p>
+                    <ul>
+                        <li>A <strong>Connect</strong> button and an adjacent relationship-type dropdown. <strong>Connect</strong> turns connection mode on (its label changes to <strong>Connecting</strong>); the dropdown chooses the relationship type used by connection mode and by Shift+drag connections.</li>
+                        <li>A viewpoint banner when the active view has a viewpoint: the viewpoint name, a summary such as <strong>Showing 24 of 57 elements</strong>, and <strong>Filter</strong> / <strong>Show all</strong> to toggle filtering.</li>
+                        <li>An accordion of palette categories, each with a colour dot and an element count. See Appendix B for the full list.</li>
+                        <li>Each element is a draggable tile. Select it to drop a copy in the middle of the canvas, or drag it to the exact position you want.</li>
+                    </ul>
+                    <p><strong>AI Assistant tab</strong> — described in Chapter 16.</p>
+
+                    <h3>8.3 The canvas</h3>
+                    <p>The canvas is the drawing surface for <strong>Diagram</strong> views. It shows a light grid, and:</p>
+                    <ul>
+                        <li>A hint pill in the corner: <strong>Shift + Drag to connect</strong>, <strong>Space + Drag to pan</strong>, <strong>Ctrl + Z to undo</strong>.</li>
+                        <li>A banner while connection mode is active, describing the next click.</li>
+                        <li>A floating toolbar on the selected object with <strong>Bring to front</strong>, <strong>Send to back</strong>, <strong>Edit properties</strong> (pencil) and <strong>Delete</strong> (trash).</li>
+                        <li>Short toast messages for completed actions (for example "Connection created.", "Export successful.").</li>
+                    </ul>
+                    <p>For <strong>Catalogue</strong> and <strong>Matrix</strong> views the canvas is hidden and replaced by the corresponding data view. The canvas stays mounted in the background, so switching back is instant and loses nothing.</p>
+
+                    <h3>8.4 The explorer sidebar (right)</h3>
+                    <p>Three tabs: <strong>Explorer</strong>, <strong>Properties</strong> and <strong>Problems</strong>. The <strong>Problems</strong> tab carries a red badge with the current error count.</p>
+                    <ul>
+                        <li><strong>Explorer</strong> — see 8.5.</li>
+                        <li><strong>Properties</strong> — edits the selected element or relationship (Chapter 10).</li>
+                        <li><strong>Problems</strong> — validation issues (Chapter 13).</li>
+                    </ul>
+
+                    <h3>8.5 Inside the Explorer tab</h3>
+                    <p>Top to bottom:</p>
+                    <ol>
+                        <li><strong>Diagrams (Views)</strong> — the list of views in this diagram, the active one marked <strong>(Current)</strong>, plus a dashed <strong>+ New View</strong> button.</li>
+                        <li><strong>Viewpoint</strong> — a <strong>View content</strong> select (Diagram / Catalogue / Matrix), a viewpoint select defaulting to <strong>No viewpoint</strong>, and, when a viewpoint is chosen, its <strong>Concern</strong>, its <strong>Stakeholders</strong> and the hint "Narrows the palette and the problems list to what this view is for."</li>
+                        <li><strong>Model Repository</strong> — appears once the model has elements. A <strong>Search model</strong> box with the placeholder "Name, type, domain, property…" filters elements by name, ArchiMate type, domain, plateau, lifecycle state, reference model, reference code, owner, classification and custom property values. Results are grouped by layer. Each row shows an occurrence badge whose tooltip lists the occurrences and the view count. Repository rows can be dragged onto the canvas to add another occurrence of the same element.</li>
+                        <li><strong>Current layers</strong> — the elements on this view, grouped by layer.</li>
+                        <li><strong>Relationships</strong> — every relationship on the view, written as <em>SOURCE → TARGET</em> with a type badge.</li>
+                        <li><strong>Plateau planner</strong> — see Chapter 14.</li>
+                    </ol>
+                    <p>If the model is empty, the panel shows <strong>Model is empty</strong> instead of the repository.</p>
+
+                    <h3>8.6 Responsive behaviour</h3>
+                    <ul>
+                        <li><strong>Below the large breakpoint</strong> the two sidebars become overlay panels with a dimmed backdrop; the header gains toggles for them and tapping the backdrop closes them.</li>
+                        <li><strong>Below the medium breakpoint</strong> the header collapses its secondary actions into <strong>More actions</strong>, and adding an element from the palette automatically closes the palette so you can see the result.</li>
+                    </ul>
+
+                    <h3>8.7 Opening and leaving the editor</h3>
+                    <p>While the diagram loads you see a spinner and <strong>Loading diagram…</strong>. If the diagram cannot be loaded (deleted, or no access) you see <strong>Cannot open this diagram</strong> with a link back to the project.</p>
+                    <p>If you have unsaved changes and try to close the tab, refresh, or navigate away, the browser asks you to confirm. Saving happens automatically in most cases, so the warning mainly protects work made in the seconds before you leave.</p>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="9-drawing-and-editing-a-diagram">
+                    <h2>9. Drawing and editing a diagram</h2>
+                    <p>All editing gestures below require edit rights. In read-only mode you can select objects and read their properties, pan, zoom and open linked views, but nothing can be created or changed.</p>
+
+                    <h3>9.1 Adding an element</h3>
+                    <p>Three equivalent routes:</p>
+                    <ol>
+                        <li><strong>Click</strong> an element tile in the palette — a copy lands near the middle of the visible canvas with a small random offset so repeated clicks do not stack.</li>
+                        <li><strong>Drag</strong> a tile from the palette and drop it where you want it — the drop position snaps to the grid.</li>
+                        <li><strong>Drag</strong> an element from the <strong>Model Repository</strong> — this adds another occurrence of the <em>existing</em> model element, not a new one.</li>
+                    </ol>
+                    <p>Newly added shapes are selected automatically, so you can immediately rename them in <strong>Properties</strong>.</p>
+
+                    <h3>9.2 Selecting, moving and resizing</h3>
+                    <ul>
+                        <li><strong>Click</strong> an object to select it. Drag on empty canvas to rubber-band select several objects.</li>
+                        <li><strong>Drag</strong> a selected object to move it. Movement snaps to the grid, and children inside a container move with it.</li>
+                        <li><strong>Drag a corner handle</strong> to resize. Text is never stretched; groups re-lay out their contents and keep their stroke weight.</li>
+                        <li>The floating toolbar on the selection offers <strong>Bring to front</strong> and <strong>Send to back</strong> for z-order.</li>
+                    </ul>
+
+                    <h3>9.3 Creating a relationship</h3>
+                    <p><strong>Shift + drag</strong> from source to target:</p>
+                    <ol>
+                        <li>Hold <code>Shift</code>.</li>
+                        <li>Press on the source element and drag towards the target. A dashed blue preview line follows the pointer.</li>
+                        <li>Release over the target. A relationship of the type currently chosen in the palette dropdown is created, and a toast confirms <strong>Connection created.</strong></li>
+                    </ol>
+                    <p><strong>Connection mode</strong> is the alternative, and it is easier on touch screens:</p>
+                    <ol>
+                        <li>Select <strong>Connect</strong> in the palette. A banner explains what to do next.</li>
+                        <li>Select the source element, then the target element. The connection is created with the selected relationship type.</li>
+                        <li>Select <strong>Connect</strong> again (now <strong>Connecting</strong>) or press <code>Escape</code> to leave connection mode.</li>
+                    </ol>
+                    <p>Connections stay attached when you move either end; they re-route automatically, following any bendpoints you have set.</p>
+
+                    <h3>9.4 Changing a relationship type</h3>
+                    <p>Select the relationship, then use <strong>Relationship Type</strong> in the <strong>Properties</strong> tab. The change is immediate and validation re-runs, so an invalid combination is reported straight away.</p>
+
+                    <h3>9.5 Bendpoints</h3>
+                    <p>Long relationships often need routing around other content:</p>
+                    <ul>
+                        <li><strong>Double-click</strong> a relationship line to insert a bendpoint at the closest segment.</li>
+                        <li><strong>Drag</strong> a bendpoint dot to move it.</li>
+                        <li><strong>Double-click</strong> a dot to remove it.</li>
+                        <li>Or use <strong>Bendpoints</strong> in the Properties tab: <strong>Add bend</strong> and <strong>Clear bends</strong>.</li>
+                    </ul>
+
+                    <h3>9.6 Nesting, containment and composition</h3>
+                    <p>EAsync understands ArchiMate nesting.</p>
+                    <ul>
+                        <li>Drop an element so it sits <strong>inside</strong> a container shape — a Grouping, Location, or another element that can contain children. It becomes a child and moves with its parent.</li>
+                        <li>Drop an element inside an element that is <strong>not</strong> a container and EAsync creates a <strong>composition</strong> relationship instead, with the toast "Composition created; hidden because nesting already shows it." Composition is drawn implicitly by containment rather than as an extra line.</li>
+                        <li>Select an element that has children and use <strong>Collapse contents</strong> / <strong>Expand contents</strong> in the Properties tab to fold a large container down to a single box. Contents of a collapsed shape are not hit-tested, so the box behaves like a single element.</li>
+                    </ul>
+
+                    <h3>9.7 Renaming</h3>
+                    <ul>
+                        <li><strong>Double-click</strong> a shape to open the <strong>Edit label</strong> dialog, then type the name and confirm.</li>
+                        <li>Or edit <strong>Name</strong> directly in the <strong>Properties</strong> tab.</li>
+                    </ul>
+                    <p>Renaming an element renames it in <strong>every</strong> view that shows it, because the name belongs to the model element, not the picture.</p>
+                    <blockquote>
+                        If the shape is linked to another view, double-clicking navigates to that view instead of renaming. Use the Properties tab to rename in that case.
+                    </blockquote>
+
+                    <h3>9.8 Copy, paste, duplicate and delete</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Action</th>
+                                    <th>Gesture</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Copy</td>
+                                    <td><code>Ctrl</code> + <code>C</code> (copies the selection, including multi-selections)</td>
+                                </tr>
+                                <tr>
+                                    <td>Paste</td>
+                                    <td><code>Ctrl</code> + <code>V</code> (offsets the copies slightly)</td>
+                                </tr>
+                                <tr>
+                                    <td>Delete</td>
+                                    <td><code>Delete</code> or <code>Backspace</code>, or the trash button on the floating toolbar</td>
+                                </tr>
+                                <tr>
+                                    <td>Undo</td>
+                                    <td><code>Ctrl</code> + <code>Z</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Redo</td>
+                                    <td><code>Ctrl</code> + <code>Shift</code> + <code>Z</code> or <code>Ctrl</code> + <code>Y</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Copy and paste works within the model: pasting an element that is not part of the current view produces "Nothing to paste: the copied element is not part of this view." Relationships between copied elements are carried across when both ends are present.</p>
+
+                    <h3>9.9 Clearing the canvas</h3>
+                    <p><strong>Clear</strong> in the header (or <strong>Clear diagram</strong> in the overflow menu) empties the canvas <strong>and</strong> the model repository for this diagram. EAsync asks for confirmation first, and the toast afterwards reads "Canvas and Global Repository cleared." The action is undoable with <code>Ctrl</code> + <code>Z</code> only until you save; after that it is permanent. Export first if the content matters.</p>
+
+                    <h3>9.10 Panning and zooming</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Action</th>
+                                    <th>Gesture</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Pan</td>
+                                    <td><code>Space</code> + drag, or <code>Alt</code> + drag, or middle-mouse drag</td>
+                                </tr>
+                                <tr>
+                                    <td>Scroll vertically / horizontally</td>
+                                    <td>Mouse wheel / <code>Shift</code> + wheel or trackpad gesture</td>
+                                </tr>
+                                <tr>
+                                    <td>Zoom</td>
+                                    <td><code>Ctrl</code> + wheel (or <code>Cmd</code> + wheel), 10 % to 500 %</td>
+                                </tr>
+                                <tr>
+                                    <td>Fit to screen</td>
+                                    <td>Collapse the sidebars with their header toggles, then pan and zoom to frame the view</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>The cursor changes to a grab hand while panning.</p>
+
+                    <h3>9.11 Editing with the keyboard</h3>
+                    <p><code>Escape</code> is a general cancel: it exits connection mode, closes an open dialog, and then closes the mobile sidebars. Text inputs keep their native undo behaviour, so <code>Ctrl</code> + <code>Z</code> inside a field undoes typing rather than the diagram.</p>
+                    <p>The complete shortcut list is in Chapter 20.</p>
+
+                    <h3>9.12 A first diagram, end to end</h3>
+                    <ol>
+                        <li>Create the diagram (Chapter 7.3) and open it.</li>
+                        <li>In <strong>Explorer → Diagrams</strong>, rename the starter view with <strong>+ New View</strong> if you prefer a clean view, or just use the one you have.</li>
+                        <li>Open the <strong>Viewpoint</strong> select and choose a viewpoint, for example <strong>Application Cooperation</strong>. The palette now filters to the elements that viewpoint admits.</li>
+                        <li>Drag four <strong>Component</strong> tiles from the <strong>Application</strong> category onto the canvas.</li>
+                        <li>Rename each one in <strong>Properties</strong> (for example "CRM", "Billing", "Data Warehouse", "Reporting").</li>
+                        <li>Set <strong>Plateau</strong> to <strong>Baseline</strong> on the first three and <strong>Target</strong> on a new element.</li>
+                        <li>Hold <code>Shift</code> and drag from "CRM" to "Billing" to draw a <strong>Flow</strong>.</li>
+                        <li>Open <strong>Problems</strong> to confirm there are no errors.</li>
+                        <li>Select <strong>Save</strong>.</li>
+                        <li>Select <strong>Export ArchiMate</strong> if you want a copy outside EAsync.</li>
+                    </ol>
+                    <p>You now have a model with one diagram view, one viewpoint, four elements and one relationship — and every other view you create will draw from the same model.</p>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="10-element-properties-and-metadata">
+                    <h2>10. Element properties and metadata</h2>
+                    <p>Select an object and open the <strong>Properties</strong> tab. What you see depends on what is selected.</p>
+
+                    <h3>10.1 Nothing selected</h3>
+                    <p><strong>Select an element to view properties</strong> is shown. Viewers also see: "Read only: you can inspect properties but not change them."</p>
+
+                    <h3>10.2 A shape is selected</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Group</th>
+                                    <th>Field</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>General</td>
+                                    <td><strong>Name</strong></td>
+                                    <td>The element's display name; hidden for connections in read-only mode</td>
+                                </tr>
+                                <tr>
+                                    <td>General</td>
+                                    <td><strong>Parent Group</strong></td>
+                                    <td>Re-parent a shape into a container, or <strong>None</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>General</td>
+                                    <td><strong>Link to View</strong></td>
+                                    <td>Makes the shape a navigation shortcut to another view in the diagram</td>
+                                </tr>
+                                <tr>
+                                    <td>General</td>
+                                    <td><strong>Color</strong></td>
+                                    <td>Overrides the layer colour; <strong>Reset</strong> restores it</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Model Element</strong></td>
+                                    <td><strong>ArchiMate Type</strong></td>
+                                    <td>Grouped by layer; changing the type re-styles the shape and re-runs validation</td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td><strong>Domain</strong></td>
+                                    <td>Framework segment, for example the BDAT domains <em>Perkhidmatan, Data, Aplikasi, Teknologi</em></td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td><strong>Plateau</strong></td>
+                                    <td><strong>Not set</strong>, <strong>Baseline</strong>, <strong>Transition</strong>, <strong>Target</strong></td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td><strong>Lifecycle</strong></td>
+                                    <td><strong>Current</strong>, <strong>Planned</strong>, <strong>Phasing out</strong></td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td><strong>Owner</strong></td>
+                                    <td>Accountable person or team</td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td><strong>Classification</strong></td>
+                                    <td>Sensitivity or criticality classification used by your organisation</td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td><strong>Reference Model</strong></td>
+                                    <td>The reference model this element maps to</td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td><strong>Reference Code</strong></td>
+                                    <td>The code or identifier in that reference model</td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td><strong>Properties</strong></td>
+                                    <td>Arbitrary key/value pairs; <strong>Add Property</strong> and <strong>Remove</strong> per row</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Everything in the <strong>Model Element</strong> fieldset is <strong>model-level</strong>, not view-level. The panel states it plainly: <em>"Changes apply to every view that shows this element."</em> That is the single most important behaviour to understand about EAsync metadata — set an element's owner once and every catalogue, matrix and diagram view agrees.</p>
+
+                    <h3>10.3 A relationship is selected</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Relationship Type</strong></td>
+                                    <td>Any of the eleven ArchiMate relationship types (Appendix C)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Documentation</strong></td>
+                                    <td>Free text describing the relationship</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Bendpoints</strong></td>
+                                    <td><strong>Add bend</strong> / <strong>Clear bends</strong>, with the hint "Double-click a line to add a bendpoint, double-click a dot to remove it."</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>The relationship's <strong>Name</strong> field can also be set, and is what the <strong>Relationships</strong> list in the Explorer shows.</p>
+
+                    <h3>10.4 Practical metadata guidance</h3>
+                    <ul>
+                        <li><strong>Name consistently.</strong> "CRM System" and "CRM" read as two systems in a catalogue export.</li>
+                        <li><strong>Use Plateau on everything you will roadmap.</strong> Untagged elements are ignored by the gap analysis.</li>
+                        <li><strong>Use Domain for reporting slices.</strong> Domain values appear as sortable columns in catalogue views and in the CSV export, which is how most teams build their architecture inventory.</li>
+                        <li><strong>Prefer custom Properties and Reference Code over stuffing text into the name.</strong> They are searchable (the repository search covers custom property values), sortable and exportable.</li>
+                    </ul>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="11-views-diagram-catalogue-and-matrix">
+                    <h2>11. Views: Diagram, Catalogue and Matrix</h2>
+                    <p>A diagram holds multiple views. All views read the same model, so they can be created at any time and immediately reflect the current state.</p>
+
+                    <h3>11.1 Listing and switching views</h3>
+                    <p>The <strong>Explorer → Diagrams (Views)</strong> section lists every view. The active view is marked <strong>(Current)</strong>. Select any entry to switch to it. Your canvas state for each diagram view is preserved while the diagram is open.</p>
+
+                    <h3>11.2 Creating a view</h3>
+                    <ol>
+                        <li>Select <strong>+ New View</strong>.</li>
+                        <li>Enter a <strong>View name</strong> — for example "Application Layer".</li>
+                        <li>Choose a <strong>Viewpoint</strong>; the list starts with <strong>No viewpoint</strong>.</li>
+                        <li>Choose <strong>Content</strong>:
+                            <ul>
+                                <li><strong>Diagram</strong> — a drawing surface.</li>
+                                <li><strong>Catalogue</strong> — a table.</li>
+                                <li><strong>Matrix</strong> — a layer grid.</li>
+                            </ul>
+                            The dialog's help text explains that content decides how the view presents the model.
+                        </li>
+                        <li>Confirm.</li>
+                    </ol>
+
+                    <h3>11.3 Changing a view's content type or viewpoint</h3>
+                    <p>Use the <strong>Viewpoint</strong> block in the Explorer tab:</p>
+                    <ul>
+                        <li><strong>View content</strong> — switch between Diagram, Catalogue and Matrix at any time. Diagram content is not lost when you switch away; it is simply hidden.</li>
+                        <li>Viewpoint select — apply or clear a viewpoint. Choosing a viewpoint narrows the palette, the catalogue and matrix scope, and the validation scope.</li>
+                    </ul>
+                    <p>Only editors can change these. Viewers see the current values but cannot change them.</p>
+
+                    <h3>11.4 Diagram views</h3>
+                    <p>Covered in Chapters 9 and 10. A diagram view is the only place elements can be drawn, moved or connected.</p>
+
+                    <h3>11.5 Catalogue views</h3>
+                    <p>A catalogue view is a table of the model.</p>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Element</th>
+                                    <th>Behaviour</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Search elements</strong></td>
+                                    <td>Filters across names and metadata</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Only elements this viewpoint admits</strong></td>
+                                    <td>Checkbox (shown when the view has a viewpoint) that scopes the table to the viewpoint's element set</td>
+                                </tr>
+                                <tr>
+                                    <td>Column headers</td>
+                                    <td>Sort by <strong>Name</strong>, <strong>Type</strong>, <strong>Layer</strong>, <strong>Domain</strong>, <strong>Plateau</strong>, <strong>Lifecycle</strong>, <strong>Reference model</strong>, <strong>Reference code</strong>, <strong>Owner</strong>, <strong>Classification</strong>, <strong>Views</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Custom-property columns</td>
+                                    <td>Up to eight custom property keys become their own columns automatically</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Export CSV</strong></td>
+                                    <td>Downloads the current table</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Showing N of M elements</strong></td>
+                                    <td>How many elements the filter left visible</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Rename</strong> on the Name cell</td>
+                                    <td>Inline rename for editors; renames the model element everywhere</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Empty states: <strong>No element matches the current filter.</strong> when a filter excludes everything, and <strong>The model has no elements yet. Draw them on a diagram view first.</strong> on a brand-new diagram.</p>
+
+                    <h3>11.6 Matrix views</h3>
+                    <p>A matrix view crosses two layers and shows where relationships exist.</p>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Element</th>
+                                    <th>Behaviour</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Rows</strong></td>
+                                    <td>The layer supplying row elements</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Columns</strong></td>
+                                    <td>The layer supplying column elements</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Show elements with no relationship</strong></td>
+                                    <td>Includes empty rows and columns, useful when auditing coverage</td>
+                                </tr>
+                                <tr>
+                                    <td>Grid</td>
+                                    <td>Sticky row and column headers; each populated cell shows a count badge</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Export CSV</strong></td>
+                                    <td>Downloads the matrix</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Row ↓ / Column →</strong></td>
+                                    <td>Corner label explaining the orientation</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Two behaviours are worth knowing:</p>
+                    <ul>
+                        <li><strong>Relationships are indexed in both directions.</strong> A dependency is worth seeing whichever direction it was drawn in, so a relationship from an Application element to a Business element appears in both the row and the column that match.</li>
+                        <li><strong>Viewpoint scoping applies.</strong> If the view has a viewpoint, only admitted elements are counted.</li>
+                    </ul>
+                    <p>Empty state: <strong>No element of these layers is in scope. Pick another layer or a viewpoint with more elements.</strong></p>
+
+                    <h3>11.7 Choosing the right content type</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>You want to…</th>
+                                    <th>Use</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Present architecture to people</td>
+                                    <td>Diagram</td>
+                                </tr>
+                                <tr>
+                                    <td>Audit what exists and who owns it</td>
+                                    <td>Catalogue</td>
+                                </tr>
+                                <tr>
+                                    <td>Answer "what talks to what" between layers</td>
+                                    <td>Matrix</td>
+                                </tr>
+                                <tr>
+                                    <td>Produce an inventory export</td>
+                                    <td>Catalogue with <strong>Export CSV</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Prove coverage or find gaps in integration</td>
+                                    <td>Matrix with <strong>Show elements with no relationship</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="12-viewpoints-and-frameworks">
+                    <h2>12. Viewpoints and frameworks</h2>
+                    
+                    <h3>12.1 What a viewpoint does</h3>
+                    <p>A viewpoint is a named purpose for a view: a concern it answers, the stakeholders it serves, and the set of ArchiMate element types it admits. Applying one to a view has three effects:</p>
+                    <ol>
+                        <li><strong>The palette narrows</strong> to admissible elements, with a banner showing <strong>Showing N of M elements</strong> and a <strong>Show all</strong> escape hatch.</li>
+                        <li><strong>Catalogue and Matrix views scope</strong> to the admitted elements.</li>
+                        <li><strong>Problems can be scoped</strong> to the viewpoint (Chapter 13).</li>
+                    </ol>
+                    <p>EAsync ships 41 viewpoints: 22 ArchiMate, 14 TOGAF and 5 MyGovEA.</p>
+
+                    <h3>12.2 ArchiMate viewpoints</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Viewpoint</th>
+                                    <th>Concern it answers</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Organization</strong></td>
+                                    <td>Who carries out the work, and how is the organisation structured?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Business Process Cooperation</strong></td>
+                                    <td>How do business processes cooperate to deliver value?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Product</strong></td>
+                                    <td>What products and services are offered, and what do they contain?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Application Cooperation</strong></td>
+                                    <td>How do application components cooperate?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Application Usage</strong></td>
+                                    <td>Which applications support which business processes?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Implementation and Deployment</strong></td>
+                                    <td>How is the architecture implemented and deployed?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Technology</strong></td>
+                                    <td>What technology infrastructure exists and how is it structured?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Information Structure</strong></td>
+                                    <td>How is information structured, and what accesses it?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Service Realization</strong></td>
+                                    <td>Which elements realise a service?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Goal Realization</strong></td>
+                                    <td>Which elements realise a goal?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Goal Contribution</strong></td>
+                                    <td>Which elements contribute positively or negatively to a goal?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Principles</strong></td>
+                                    <td>Which principles govern the architecture?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Requirements Realization</strong></td>
+                                    <td>Which elements realise a requirement?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Motivation</strong></td>
+                                    <td>Why does the architecture look like this?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Strategy</strong></td>
+                                    <td>What is the strategic direction and how is it resourced?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Capability Map</strong></td>
+                                    <td>What capabilities exist and how do they decompose?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Outcome Realization</strong></td>
+                                    <td>Which outcomes does the architecture deliver?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Resource Map</strong></td>
+                                    <td>What resources underpin capabilities?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Value Stream</strong></td>
+                                    <td>How does value flow through the organisation?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Physical</strong></td>
+                                    <td>What physical equipment, facilities and materials exist?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Stakeholder</strong></td>
+                                    <td>Who are the stakeholders and what do they care about?</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Layered</strong></td>
+                                    <td>A cross-layer overview</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Each viewpoint shows its <strong>Concern</strong> and <strong>Stakeholders</strong> in the Explorer tab, which makes them self-documenting when you hand a view to a reviewer.</p>
+
+                    <h3>12.3 TOGAF viewpoints and ADM phases</h3>
+                    <p>The TOGAF viewpoints are mapped to ADM phases, so an assistant prompt or a view can be anchored to a phase of the method.</p>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Phase</th>
+                                    <th>Purpose</th>
+                                    <th>Typical artefacts</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Preliminary</td>
+                                    <td>Architecture Capability</td>
+                                    <td>Establish the practice, principles and governance</td>
+                                    <td>Architecture Principles, Architecture Repository, Request for Architecture Work</td>
+                                </tr>
+                                <tr>
+                                    <td>Phase A</td>
+                                    <td>Architecture Vision</td>
+                                    <td>Agree scope, stakeholders, concerns, high-level vision</td>
+                                    <td>Stakeholder Map, Solution Concept, Value Chain, Architecture Vision</td>
+                                </tr>
+                                <tr>
+                                    <td>Phase B</td>
+                                    <td>Business Architecture</td>
+                                    <td>Baseline and target business architecture</td>
+                                    <td>Capability Map, Value Stream Map, Business Process Map, Organization Map, Business Service/Function Catalog</td>
+                                </tr>
+                                <tr>
+                                    <td>Phase C</td>
+                                    <td>Information Systems Architectures</td>
+                                    <td>Data and application architectures</td>
+                                    <td>Application Portfolio Catalog, Application Communication, Data Entity/Component Catalog, Application and User Location</td>
+                                </tr>
+                                <tr>
+                                    <td>Phase D</td>
+                                    <td>Technology Architecture</td>
+                                    <td>Technology and physical architecture</td>
+                                    <td>Technology Standards Catalog, Technology Portfolio Catalog, Environments and Locations, Platform Decomposition</td>
+                                </tr>
+                                <tr>
+                                    <td>Phase E</td>
+                                    <td>Opportunities and Solutions</td>
+                                    <td>Group work into projects; identify transition architectures</td>
+                                    <td>Project Context, Benefits diagram, Work Package definitions, Consolidated Gaps</td>
+                                </tr>
+                                <tr>
+                                    <td>Phase F</td>
+                                    <td>Migration Planning</td>
+                                    <td>Sequence work packages into plateaus; produce the roadmap</td>
+                                    <td>Implementation and Migration Plan, Architecture Roadmap, Transition Architecture definitions</td>
+                                </tr>
+                                <tr>
+                                    <td>Phase G</td>
+                                    <td>Implementation Governance</td>
+                                    <td>Govern delivery against the target</td>
+                                    <td>Architecture Contract, Compliance Assessment, Compliance Review</td>
+                                </tr>
+                                <tr>
+                                    <td>Phase H</td>
+                                    <td>Architecture Change Management</td>
+                                    <td>Manage change to the deployed architecture</td>
+                                    <td>Change Request, Architecture Requirements Specification, Change Management plan</td>
+                                </tr>
+                                <tr>
+                                    <td>Requirements</td>
+                                    <td>Continuous Requirements Management</td>
+                                    <td>Capture and govern requirements across all phases</td>
+                                    <td>Requirements Catalog, Requirements Impact Assessment, Architecture Requirements Specification</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>The assistant also understands five architecture <strong>domains</strong> — <strong>Business</strong>, <strong>Data</strong>, <strong>Application</strong>, <strong>Technology</strong> and <strong>Cross-cutting</strong> — each of which scopes which ArchiMate layers a generated model may use.</p>
+
+                    <h3>12.4 MyGovEA</h3>
+                    <p>Projects whose framework is <strong>MyGovEA</strong> use the Malaysian Government Enterprise Architecture profile (mandate: PKPA Bil. 1/2020 and the MyGovEA Master Plan). The client ships five MyGovEA viewpoints:</p>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Viewpoint</th>
+                                    <th>Concern</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>EA Blueprint</strong></td>
+                                    <td>The whole-of-agency architecture, expressed across the BDAT domains</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Domain Architecture</strong></td>
+                                    <td>The architecture of one BDAT domain</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Service Architecture</strong></td>
+                                    <td>Services offered and how they are delivered</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Implementation Plan</strong></td>
+                                    <td>How the architecture will be delivered</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Compliance and Monitoring</strong></td>
+                                    <td>How compliance is evidenced and monitored</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>The <strong>Domain</strong> field on an element accepts the BDAT segments, so MyGovEA reporting works through the catalogue and CSV export.</p>
+
+                    <h3>12.5 Choosing a framework</h3>
+                    <p>The framework is a project setting (<strong>Edit</strong> on the project card). It does not restrict what you can model — ArchiMate 3.2 is the notation in both cases — it changes which phases, principles and artefacts the assistant is steered by and which viewpoint set is relevant.</p>
+
+                    <h3>12.6 Practical advice on viewpoints</h3>
+                    <ul>
+                        <li><strong>One purpose per view.</strong> A "Business and Application and Technology" view answers nothing well; three viewpoint-scoped views answer everything.</li>
+                        <li><strong>Use "No viewpoint" deliberately</strong> for free-form working views, then apply a viewpoint when you hand the view over.</li>
+                        <li><strong>Let the palette filter help you.</strong> If the element you want is missing from the palette, the viewpoint probably does not admit it — that is a signal, not a bug. Use <strong>Show all</strong> to override.</li>
+                    </ul>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="13-model-validation-problems">
+                    <h2>13. Model validation (Problems)</h2>
+                    <p>EAsync validates the model continuously against ArchiMate 3.2 relationship rules. Validation is computed from the model catalogue, not from the drawing, so it is the same in every view and updates the instant you change anything.</p>
+
+                    <h3>13.1 Opening the panel</h3>
+                    <p>Select the <strong>Problems</strong> tab in the explorer. The tab carries a red badge with the current error count, so you can see at a glance whether the model is clean without opening it.</p>
+
+                    <h3>13.2 Reading the panel</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Element</th>
+                                    <th>Behaviour</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Severity filter</td>
+                                    <td><strong>All problems</strong>, <strong>Errors</strong>, <strong>Warnings</strong>, <strong>Information</strong></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Export Report</strong></td>
+                                    <td>Downloads <code>easync-validation.csv</code> (with a byte-order mark so Excel detects UTF-8) containing Severity, Issue, Detail, Code</td>
+                                </tr>
+                                <tr>
+                                    <td>Summary line</td>
+                                    <td><em>N errors · N warnings · N infos</em></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Only elements this viewpoint admits</strong></td>
+                                    <td>Switch, shown only when the active view has a viewpoint</td>
+                                </tr>
+                                <tr>
+                                    <td>Issue list</td>
+                                    <td>Each row shows severity, the issue description and the language-neutral detail</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Selecting an issue <strong>selects the offending element on the canvas</strong>, so you can go straight from problem to fix. For relationship issues it falls back to selecting the relationship.</p>
+                    <p>Empty state: <strong>No problems found.</strong> The panel footer states the ruleset: "Checked against the ArchiMate 3.2 relationship rules."</p>
+
+                    <h3>13.3 What is checked</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Severity</th>
+                                    <th>Checks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Error</td>
+                                    <td>A relationship points at an element that is not in the model; an element relates to itself; ArchiMate forbids any relationship between these two types; ArchiMate forbids this specific relationship type between these two types</td>
+                                </tr>
+                                <tr>
+                                    <td>Warning</td>
+                                    <td>The same relationship is modelled more than once; an element has no name; an unknown ArchiMate type (its relationships were not checked); a junction joins more than one relationship type</td>
+                                </tr>
+                                <tr>
+                                    <td>Information</td>
+                                    <td>Reserved for advisory findings</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Appendix D lists every code.</p>
+
+                    <h3>13.4 A validation workflow</h3>
+                    <ol>
+                        <li>Build the view.</li>
+                        <li>Open <strong>Problems</strong>, filter to <strong>Errors</strong>.</li>
+                        <li>Work down the list; each click jumps to the element.</li>
+                        <li>Fix the relationship type, or delete the relationship, using the <strong>Properties</strong> tab.</li>
+                        <li>Repeat until the error count is zero.</li>
+                        <li>Export the report for the architecture review record.</li>
+                    </ol>
+                    <blockquote>
+                        <strong>Warnings are not noise.</strong> Unnamed elements and duplicated relationships make catalogues and matrices unreliable. Clear them before exporting an inventory.
+                    </blockquote>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="14-plateau-gap-analysis-and-work-packages">
+                    <h2>14. Plateau gap analysis and work packages</h2>
+                    <p>The <strong>Plateau planner</strong> turns the plateau tags you set on elements into a migration plan. It is the implementation of the TOGAF Phase E/F transition-planning idea inside the model.</p>
+
+                    <h3>14.1 Where it lives</h3>
+                    <p>Open the <strong>Explorer</strong> tab and find the <strong>Plateau planner</strong> section, below the relationship list.</p>
+
+                    <h3>14.2 Using it</h3>
+                    <ol>
+                        <li>Choose a <strong>From</strong> plateau — <strong>Baseline</strong> by default.</li>
+                        <li>Choose a <strong>To</strong> plateau — <strong>Target</strong> by default.</li>
+                        <li>Review the <strong>change list</strong>. Each entry is a single model element, its change kind, and a tooltip showing <em>layer · ArchiMate type</em>.</li>
+                        <li>Select any entry to select that element on the canvas and inspect it.</li>
+                        <li>Read the <strong>Work packages</strong> list, grouped with their TOGAF phase code and element count, to see how the changes cluster into initiatives.</li>
+                        <li>Export the plan for the roadmap document (see Chapter 17 for CSV and image export).</li>
+                    </ol>
+                    <p>Empty state: <strong>Pick two different plateaus to see what has to change.</strong> If both selections are identical the planner has nothing to show.</p>
+
+                    <h3>14.3 Change kinds</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Badge</th>
+                                    <th>Kind</th>
+                                    <th>Meaning</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Red</td>
+                                    <td><strong>Retire</strong></td>
+                                    <td>In the source plateau, gone in the target</td>
+                                </tr>
+                                <tr>
+                                    <td>Green</td>
+                                    <td><strong>Introduce</strong></td>
+                                    <td>Absent in the source, present in the target</td>
+                                </tr>
+                                <tr>
+                                    <td>Amber</td>
+                                    <td><strong>Align</strong></td>
+                                    <td>Present in both, but its attributes or relationships change</td>
+                                </tr>
+                                <tr>
+                                    <td>Grey</td>
+                                    <td><strong>Retain</strong></td>
+                                    <td>Present in both with no change</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Use the badges to sanity-check a roadmap: a plan with a large <strong>Retire</strong> count and a large <strong>Introduce</strong> count in the same work package is usually two initiatives that should be separated.</p>
+
+                    <h3>14.4 Getting useful results</h3>
+                    <ul>
+                        <li><strong>Tag consistently.</strong> Gap analysis only sees elements whose <strong>Plateau</strong> is set.</li>
+                        <li><strong>Use Transition.</strong> A Baseline → Target plan with no transition plateau usually produces an unimplementable work package; add a transition plateau and compare Baseline → Transition, then Transition → Target.</li>
+                        <li><strong>Set Lifecycle</strong> as well (<strong>Current</strong>, <strong>Planned</strong>, <strong>Phasing out</strong>) — it complements plateau tagging and appears as its own catalogue column.</li>
+                        <li><strong>Model work packages as elements</strong> when you want them on the canvas; the planner groups by phase, and the diagram shows the sequencing (triggering relationships read left to right).</li>
+                    </ul>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="15-version-history-and-revisions">
+                    <h2>15. Version history and revisions</h2>
+                    <p>EAsync keeps two kinds of history: <strong>automatic</strong> revisions recorded as you work, and <strong>named snapshots</strong> you create deliberately.</p>
+
+                    <h3>15.1 Opening version history</h3>
+                    <p>Select <strong>Revisions</strong> in the header (or <strong>Revisions</strong> in the <strong>More actions</strong> menu on small screens). The dialog lists revisions newest first.</p>
+
+                    <h3>15.2 Reading a revision</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Meaning</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Label</td>
+                                    <td>Your snapshot label, or <strong>Automatic save</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Badge</td>
+                                    <td><strong>Snapshot</strong> for named revisions, <strong>Auto</strong> for automatic ones</td>
+                                </tr>
+                                <tr>
+                                    <td>Meta</td>
+                                    <td><em>Version N · creator · date</em></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Preview</strong> / <strong>Hide</strong></td>
+                                    <td>Expands a per-view table showing each view's name, <strong>Shapes</strong> and <strong>Connections</strong> counts</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Restore</strong></td>
+                                    <td>Rolls the diagram back to that revision</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Empty state: <strong>No revisions have been recorded yet.</strong></p>
+
+                    <h3>15.3 Recording a named snapshot</h3>
+                    <ol>
+                        <li>Select <strong>Revisions</strong>.</li>
+                        <li>Type a label — for example "Before refactor" or "Approved baseline".</li>
+                        <li>Confirm.</li>
+                    </ol>
+                    <p>Notes:</p>
+                    <ul>
+                        <li>A note in the dialog warns when the canvas has unsaved changes, because the snapshot will include them. That is usually what you want.</li>
+                        <li>Snapshots are cheap. Take one before any large restructure: a bulk delete, a re-layout, an assistant-driven change.</li>
+                        <li>Viewers cannot create snapshots.</li>
+                    </ul>
+
+                    <h3>15.4 Previewing a revision</h3>
+                    <p>Select <strong>Preview</strong> to see the per-view shape and connection counts, which is enough to tell a small edit from an accidental clear without leaving the dialog.</p>
+
+                    <h3>15.5 Restoring a revision</h3>
+                    <ol>
+                        <li>Select <strong>Restore</strong> next to the revision.</li>
+                        <li>Confirm with <strong>Confirm restore</strong>.</li>
+                    </ol>
+                    <p><strong>Restore is blocked while you have unsaved changes.</strong> The button is disabled with the tooltip "Save your changes before restoring a revision". Save — or discard — first, then restore.</p>
+                    <p>Restoring writes a new save. The revision you restored from remains in the list, so restoring is itself reversible: restore again to an earlier point, or restore the revision you came from.</p>
+
+                    <h3>15.6 When to take a snapshot</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Moment</th>
+                                    <th>Why</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Before a large reorganisation</td>
+                                    <td>Cheapest possible safety net</td>
+                                </tr>
+                                <tr>
+                                    <td>When a view is approved in a review</td>
+                                    <td>Creates an auditable "as approved" state</td>
+                                </tr>
+                                <tr>
+                                    <td>Before applying an AI-generated plan</td>
+                                    <td>Isolates assistant changes from your own work</td>
+                                </tr>
+                                <tr>
+                                    <td>Before an import</td>
+                                    <td>Import replaces content; a snapshot makes it reversible</td>
+                                </tr>
+                                <tr>
+                                    <td>End of a working session</td>
+                                    <td>Marks a clean handover point</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="16-the-ai-assistant">
+                    <h2>16. The AI Assistant</h2>
+                    <p>The assistant turns a natural-language request into a <strong>plan</strong> of model operations. Nothing is applied until you review the plan and confirm it.</p>
+
+                    <h3>16.1 How it works, in one paragraph</h3>
+                    <p>You describe what you want — "capability map for retail banking with the application services that realise it" — optionally anchored to a TOGAF ADM phase and an architecture domain. The client sends the prompt, the phase, the domain and a description of the current diagram to your API. The API calls the AI provider you configured and returns a structured plan. EAsync turns that plan into a readable preview: a summary, the rationale, relevant principles, and a bullet list of the changes it intends to make. Only when you select <strong>Apply</strong> does anything change on the canvas.</p>
+
+                    <h3>16.2 Before you can use it</h3>
+                    <p>You need:</p>
+                    <ol>
+                        <li><strong>Edit rights</strong> on the diagram. Viewers see the message "You only have view access to this diagram."</li>
+                        <li><strong>An AI provider configured for your account</strong> — see 16.3.</li>
+                    </ol>
+                    <p>If either is missing the assistant tells you which.</p>
+
+                    <h3>16.3 Configuring your AI provider</h3>
+                    <ol>
+                        <li>Open the <strong>AI Assistant</strong> tab in the palette.</li>
+                        <li>Select <strong>Settings</strong>.</li>
+                        <li>Fill in:</li>
+                    </ol>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>API base URL</strong></td>
+                                    <td>The OpenAI-compatible endpoint, for example <code>https://api.openai.com/v1</code>. Also works with Azure OpenAI, OpenRouter, Ollama and LM Studio</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Model</strong></td>
+                                    <td>The model identifier, for example <code>gpt-4o-mini</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>API key</strong></td>
+                                    <td>Your key. Shown as a password field. A <strong>Key stored</strong> / <strong>No key</strong> badge tells you whether a key already exists</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <ol start="4">
+                        <li>Select <strong>Save</strong>. <strong>Remove key</strong> deletes the stored key.</li>
+                    </ol>
+                    <p>Key handling, as explained in the form itself:</p>
+                    <ul>
+                        <li>The key is stored <strong>server-side for your account</strong> and is <strong>never returned to the browser</strong>. The field's placeholder changes when a key is already stored, so you can tell without exposing it.</li>
+                        <li>A leading <code>Bearer </code> prefix and surrounding quotes are stripped automatically, so pasting a full authorization header value works.</li>
+                        <li>Any OpenAI-compatible endpoint is accepted, so you can keep the model on your own infrastructure (Ollama, LM Studio) if policy requires it.</li>
+                    </ul>
+                    <p>If the provider rejects the request, the assistant opens <strong>Settings</strong> automatically so you can correct the configuration.</p>
+
+                    <h3>16.4 Prompting</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Control</th>
+                                    <th>Purpose</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>TOGAF ADM phase</strong></td>
+                                    <td>Anchors the request to a phase. The form shows the phase code and name, its purpose, and its typical <strong>Artefacts</strong></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Architecture domain</strong></td>
+                                    <td>Business, Data, Application, Technology or Cross-cutting, which constrains the ArchiMate layers used</td>
+                                </tr>
+                                <tr>
+                                    <td>Prompt box</td>
+                                    <td>Your request in your own words</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Preview changes</strong></td>
+                                    <td>Generates the plan; the button reads <strong>Thinking…</strong> while busy</td>
+                                </tr>
+                                <tr>
+                                    <td><code>Ctrl</code> + <code>Enter</code></td>
+                                    <td>Sends the prompt</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>The hint under the prompt reads: "The assistant proposes changes; nothing is applied until you confirm. Press Ctrl+Enter to send."</p>
+                    <p>Good prompts:</p>
+                    <ul>
+                        <li>Name the elements you expect: <em>"Capability map for retail banking with the application services that realise it."</em></li>
+                        <li>State the layer boundary: <em>"Application components only for the payments domain; do not add technology nodes."</em></li>
+                        <li>Say what to keep: <em>"Add a Data Object for customer records to the existing payments view; do not remove anything."</em></li>
+                        <li>Anchor to an artefact: <em>"Phase B business service catalogue as a diagram."</em></li>
+                    </ul>
+                    <p>Weak prompts: single words, requests that span the whole ADM at once, or requests that ask for content the notation cannot express ("draw the org chart as a table").</p>
+
+                    <h3>16.5 Reviewing the plan</h3>
+                    <p>Before applying, the preview panel shows:</p>
+                    <ol>
+                        <li>A <strong>summary</strong> of what will happen.</li>
+                        <li><strong>Rationale</strong> badges — the phase and viewpoint the plan was built against.</li>
+                        <li><strong>Principles</strong> the plan claims to respect.</li>
+                        <li>A <strong>preview</strong> bullet list, one line per intended operation (add shape, add connection, rename, move, remove, reparent, clear view).</li>
+                        <li>Any <strong>notices</strong>, for example that existing content will be kept.</li>
+                    </ol>
+                    <p>Read the bullets. They are the actual operations, in order.</p>
+
+                    <h3>16.6 Applying or discarding</h3>
+                    <ul>
+                        <li><strong>Apply</strong> performs the operations on the current view, lays out new shapes automatically if the plan does not specify positions, avoids overlapping existing content, then confirms with a toast: "Applied N changes to the diagram."</li>
+                        <li><strong>Discard</strong> throws the plan away. Nothing on the canvas changes.</li>
+                    </ul>
+                    <p>Two safeguards are built in:</p>
+                    <ul>
+                        <li><strong>Your content is protected.</strong> A follow-up prompt cannot silently wipe the diagram: a plan that would clear the view is dropped and replaced with additive operations, and the toast says "existing content was kept".</li>
+                        <li><strong>Partial failures are reported, not hidden.</strong> If some operations cannot be applied the toast reads "Applied N changes; M could not be applied."</li>
+                    </ul>
+
+                    <h3>16.7 Recommended workflow</h3>
+                    <ol>
+                        <li>Save. (Optionally take a snapshot: <strong>Revisions → label → confirm</strong>.)</li>
+                        <li>Choose the ADM phase and domain.</li>
+                        <li>Write one focused prompt.</li>
+                        <li>Read the plan preview carefully.</li>
+                        <li>Select <strong>Apply</strong>.</li>
+                        <li>Open <strong>Problems</strong> and check the validation result — assistant-generated relationships occasionally need a type correction.</li>
+                        <li>Adjust the layout by hand. Automatic layout is functional, not beautiful.</li>
+                        <li>Save again, and take a snapshot if the result is a milestone.</li>
+                    </ol>
+
+                    <h3>16.8 Limits worth knowing</h3>
+                    <ul>
+                        <li>The assistant works on the <strong>current view</strong>. It is not a whole-model refactoring tool.</li>
+                        <li>It generates ArchiMate 3.2 content; it does not invent new notation.</li>
+                        <li>It does not set your element metadata (owner, classification, reference model) unless you ask for it explicitly, and even then you should verify it.</li>
+                        <li>Provider latency applies. A very long prompt against a slow model may time out with "The AI provider did not answer in time. Try a shorter prompt or a faster model."</li>
+                    </ul>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="17-import-and-export">
+                    <h2>17. Import and export</h2>
+                    <h3>17.1 Exporting a PNG image</h3>
+                    <p>Select <strong>Export PNG</strong>. The active diagram view is written at 2× resolution to <code>architecture-diagram.png</code>. Use it for slides, documents and review packs.</p>
+
+                    <h3>17.2 Exporting an SVG image</h3>
+                    <p>SVG export lives in the <strong>More actions</strong> menu, which replaces the secondary header actions on screens narrower than the medium breakpoint; that menu offers <strong>Revisions</strong>, <strong>Import</strong>, <strong>Export PNG</strong>, <strong>Export SVG</strong>, <strong>Export ArchiMate</strong> and <strong>Clear diagram</strong>. On a wide screen the header shows PNG and ArchiMate export directly, so narrow the window below the medium breakpoint if you specifically need SVG.</p>
+                    <p>The active view is written as vector <code>architecture-diagram.svg</code>, which keeps text crisp when embedded in documents, wikis and print layouts.</p>
+
+                    <h3>17.3 Exporting an ArchiMate exchange file</h3>
+                    <p>Select <strong>Export ArchiMate</strong>. EAsync writes <code>easync-model.archimate</code>, an Archi exchange file containing:</p>
+                    <ul>
+                        <li>every element in the model, with its ArchiMate type,</li>
+                        <li>every relationship,</li>
+                        <li>every <strong>diagram</strong> view, with shapes, positions, sizes, parents and connections.</li>
+                    </ul>
+                    <p>Catalogue and matrix views are not exported, because they are presentations rather than drawings. The file is the right artefact for archival, for exchange with another ArchiMate tool, and as a backup before destructive changes.</p>
+
+                    <h3>17.4 Importing an ArchiMate file</h3>
+                    <ol>
+                        <li>Select <strong>Import</strong>.</li>
+                        <li>Choose an <code>.archimate</code> (or Archi <code>.xml</code>) file.</li>
+                    </ol>
+                    <p>What happens:</p>
+                    <ul>
+                        <li>The file is parsed and its views, elements and relationships replace the current canvas content. <strong>This is a replacement, not a merge</strong> — take a snapshot first if the diagram has work you may want back.</li>
+                        <li>On success the toast reads <strong>File loaded successfully.</strong> and the first view in the file becomes active.</li>
+                        <li>If the file parses but contains no diagram views: <strong>Parsed successfully, but no visual views found.</strong>, and you are left with an empty default view.</li>
+                        <li>If the file is not valid XML or not an ArchiMate exchange file: <strong>Failed to parse the .archimate file. Ensure it is valid XML.</strong></li>
+                        <li>If the browser cannot read the file: <strong>Failed to read the selected file.</strong></li>
+                    </ul>
+                    <p>The import marks the document as changed, so the imported content is saved to EAsync on the next save (or automatically).</p>
+                    <p>Verification after an import: open <strong>Problems</strong>, then open a <strong>Catalogue</strong> view. That tells you whether elements and relationships arrived intact before you rely on the content.</p>
+
+                    <h3>17.5 Exporting data for reports</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Export</th>
+                                    <th>Location</th>
+                                    <th>Format</th>
+                                    <th>Contents</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Export CSV</strong></td>
+                                    <td>Catalogue view</td>
+                                    <td>CSV</td>
+                                    <td>Every visible element with all catalogue columns, including custom properties</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Export CSV</strong></td>
+                                    <td>Matrix view</td>
+                                    <td>CSV</td>
+                                    <td>The relationship counts for the selected row and column layers</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Export Report</strong></td>
+                                    <td>Problems tab</td>
+                                    <td><code>easync-validation.csv</code></td>
+                                    <td>Severity, Issue, Detail, Code for every issue</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>All CSV files are UTF-8 with a byte-order mark, so accented and Malaysian-language text opens correctly in Excel.</p>
+
+                    <h3>17.6 Export checklist before a review</h3>
+                    <ol>
+                        <li>Validation report exported and error count zero.</li>
+                        <li>Catalogue CSV exported for the inventory appendix.</li>
+                        <li>PNG or SVG exported for each view you will present.</li>
+                        <li><code>.archimate</code> exported as the archival copy.</li>
+                        <li>A named snapshot recorded in EAsync.</li>
+                    </ol>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="18-saving-autosave-and-conflicts">
+                    <h2>18. Saving, autosave and conflicts</h2>
+                    <h3>18.1 Autosave</h3>
+                    <p>EAsync autosaves. Changes are batched with a short debounce (about one second) after you stop editing, so a drag-and-drop sequence produces one save rather than dozens.</p>
+                    <p>The header always tells you the state:</p>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Meaning</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>All changes saved</strong></td>
+                                    <td>The server has the current document</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Unsaved changes</strong></td>
+                                    <td>Local edits exist that are not yet on the server</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Saving…</strong></td>
+                                    <td>A save is in flight</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Save failed</strong></td>
+                                    <td>The last save did not succeed; see 18.3</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Read only</strong></td>
+                                    <td>You have view access only; nothing can be saved</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p><strong>Save</strong> forces an immediate save and is useful before closing the tab, before a demo, or when the status is ambiguous.</p>
+
+                    <h3>18.2 Versions</h3>
+                    <p>Every save increments the diagram's version number, which you can see on the diagram card in the project page. Versions also appear in the revision list (Chapter 15).</p>
+
+                    <h3>18.3 When a save fails</h3>
+                    <p>A banner appears above the canvas with one of two messages.</p>
+                    <p><strong>"The last save failed"</strong> — a network or server problem. Buttons:</p>
+                    <ul>
+                        <li><strong>Retry save</strong> — try again. This is the right first response: connectivity blips and expired tokens are the common causes.</li>
+                        <li>If retrying keeps failing, check your network, then reload the page. Your last successful save is intact; edits made since it are lost unless the save eventually succeeds, so export a PNG or <code>.archimate</code> copy if the work is valuable and you must reload.</li>
+                    </ul>
+                    <p><strong>"Someone else saved this diagram first"</strong> — a version conflict. Someone (or another tab) saved between your load and your save. Buttons:</p>
+                    <ul>
+                        <li><strong>Reload latest</strong> — discards your local edits and loads the server's current version.</li>
+                        <li><strong>Overwrite</strong> — saves your version on top of theirs. Their changes since your load are lost.</li>
+                        <li><strong>Retry save</strong> — try again (usually after reloading, if you have reconciled manually).</li>
+                    </ul>
+                    <p>Choose deliberately. There is no automatic merge, because merging two hand-drawn layouts produces nonsense. The safe habit is: <strong>Reload latest</strong>, then re-apply your change, which keeps everyone's work.</p>
+
+                    <h3>18.4 Read-only mode</h3>
+                    <p>A <strong>Viewer</strong> opens any diagram in read-only mode, announced by the <strong>Read only</strong> badge and a toast "Opened in read-only mode." In read-only mode:</p>
+                    <ul>
+                        <li>Selection, panning and zooming work.</li>
+                        <li><strong>Properties</strong> are visible but not editable, with the note "Read only: you can inspect properties but not change them."</li>
+                        <li>Save, Undo/Redo, Import, Clear and the assistant are unavailable.</li>
+                        <li>Palette tiles cannot be dragged onto the canvas.</li>
+                        <li>Catalogue renaming and view content-type or viewpoint changes are blocked.</li>
+                        <li>Snapshot creation and restore are blocked; revisions can still be previewed.</li>
+                        <li>Double-clicking a shape that has a <strong>Link to View</strong> still navigates, so read-only mode remains useful for exploring a model.</li>
+                    </ul>
+
+                    <h3>18.5 Leaving the editor</h3>
+                    <p>Closing the diagram saves any pending dirty changes before the editor releases the model (unless you are read-only). If a save is impossible, the browser's leave-confirmation gives you the chance to stay.</p>
+
+                    <h3>18.6 Multi-user realities</h3>
+                    <p>EAsync is optimistic about concurrency: it does not lock a diagram while you have it open. Two people can edit the same diagram, and whoever saves second gets the conflict banner. Practical responses:</p>
+                    <ul>
+                        <li>Split work by <strong>view</strong> — two people editing different views still share the same model version, so coordinate saves.</li>
+                        <li>Agree a convention: one editor at a time per diagram, or short editing bursts with frequent saves.</li>
+                        <li>Use named snapshots around handovers so a conflict is always recoverable.</li>
+                    </ul>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="19-language-and-theme">
+                    <h2>19. Language and theme</h2>
+                    <h3>19.1 Language</h3>
+                    <p>The header carries an <strong>EN / BM</strong> toggle.</p>
+                    <ul>
+                        <li><strong>EN</strong> — English.</li>
+                        <li><strong>BM</strong> — Bahasa Malaysia.</li>
+                    </ul>
+                    <p>Every user-facing string is translated, including validation messages, empty states, tooltips and dialog labels. Validation details remain language-neutral — they use ArchiMate type names and relationship names — so an exported report reads the same in either language.</p>
+                    <p>Your choice is remembered in the browser and restored next time you sign in.</p>
+
+                    <h3>19.2 Theme</h3>
+                    <p>The sun / moon icon switches between light and dark themes. The tooltip reads <strong>Switch to dark mode</strong> or <strong>Switch to light mode</strong>. The preference is stored locally, so it applies before the first paint on your next visit. Element layer colours are tuned to stay legible in both themes, and exports use the current theme's rendering.</p>
+
+                    <h3>19.3 Accessibility</h3>
+                    <p>EAsync aims to meet WCAG AA:</p>
+                    <ul>
+                        <li>All controls are reachable by keyboard and labelled for screen readers (the palette toggle reads "Toggle elements palette", the explorer "Toggle explorer panel", and so on).</li>
+                        <li>Focus is not trapped by sidebars; <code>Escape</code> closes them.</li>
+                        <li>Colour is never the only signal: role badges carry text, validation severities are labelled, and plateau change kinds carry both a colour and a word.</li>
+                        <li>Contrast is maintained in both themes.</li>
+                    </ul>
+                    <p>If you find an accessibility problem, report it with the browser, the page and the control involved.</p>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="20-keyboard-shortcuts">
+                    <h2>20. Keyboard shortcuts</h2>
+                    
+                    <h3>20.1 Diagram editing</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Shortcut</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>Shift</code> + drag</td>
+                                    <td>Draw a relationship from source to target</td>
+                                </tr>
+                                <tr>
+                                    <td><code>Space</code> + drag</td>
+                                    <td>Pan the canvas</td>
+                                </tr>
+                                <tr>
+                                    <td><code>Alt</code> + drag, or middle-mouse drag</td>
+                                    <td>Pan the canvas</td>
+                                </tr>
+                                <tr>
+                                    <td><code>Ctrl</code> + wheel</td>
+                                    <td>Zoom in and out (10 %–500 %)</td>
+                                </tr>
+                                <tr>
+                                    <td>Wheel</td>
+                                    <td>Scroll/pan vertically; <code>Shift</code> + wheel scrolls horizontally</td>
+                                </tr>
+                                <tr>
+                                    <td>Double-click shape</td>
+                                    <td>Open the <strong>Edit label</strong> dialog, or follow the shape's linked view</td>
+                                </tr>
+                                <tr>
+                                    <td>Double-click relationship line</td>
+                                    <td>Insert a bendpoint at the nearest segment</td>
+                                </tr>
+                                <tr>
+                                    <td>Double-click bendpoint dot</td>
+                                    <td>Remove that bendpoint</td>
+                                </tr>
+                                <tr>
+                                    <td>Click palette tile</td>
+                                    <td>Add the element near the canvas centre</td>
+                                </tr>
+                                <tr>
+                                    <td>Drag palette tile</td>
+                                    <td>Add the element at the drop position</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>20.2 Selection and clipboard</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Shortcut</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>Ctrl</code> + <code>C</code></td>
+                                    <td>Copy the current selection (shapes and connections)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>Ctrl</code> + <code>V</code></td>
+                                    <td>Paste the copied content, slightly offset</td>
+                                </tr>
+                                <tr>
+                                    <td><code>Delete</code> or <code>Backspace</code></td>
+                                    <td>Delete the selection</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>On macOS, use <code>Cmd</code> in place of <code>Ctrl</code> for copy, paste, undo and redo.</p>
+
+                    <h3>20.3 History and dialogs</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Shortcut</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>Ctrl</code> + <code>Z</code></td>
+                                    <td>Undo</td>
+                                </tr>
+                                <tr>
+                                    <td><code>Ctrl</code> + <code>Shift</code> + <code>Z</code></td>
+                                    <td>Redo</td>
+                                </tr>
+                                <tr>
+                                    <td><code>Ctrl</code> + <code>Y</code></td>
+                                    <td>Redo</td>
+                                </tr>
+                                <tr>
+                                    <td><code>Escape</code></td>
+                                    <td>Leave connection mode; close the open dialog; then close the mobile sidebars</td>
+                                </tr>
+                                <tr>
+                                    <td><code>Ctrl</code> + <code>Enter</code></td>
+                                    <td>Send the AI assistant prompt</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>20.4 Where shortcuts do not apply</h3>
+                    <p>While the focus is in a text field, textarea or select, editing shortcuts are left to the browser so that <code>Ctrl</code> + <code>Z</code> undoes typing. <code>Ctrl</code> + <code>C</code> still copies canvas content when the focus is not in a field.</p>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="21-troubleshooting-and-faq">
+                    <h2>21. Troubleshooting and FAQ</h2>
+
+                    <h3>21.1 Sign-in and access</h3>
+                    <p><strong>I see "Your session expired. Please sign in again."</strong><br>
+                    The hand-off token expired or was already used. Sign in again. If it happens repeatedly, check that your device clock is correct.</p>
+
+                    <p><strong>I see "Your account has no email address."</strong><br>
+                    Your identity provider did not release an email claim. Ask your IT administrator to enable the email scope for the EAsync application, or sign in with a provider that does.</p>
+
+                    <p><strong>A project or diagram is missing from my list.</strong><br>
+                    You are not a member, or your membership is still a <strong>Not signed in yet</strong> invitation tied to a different email address. Ask the project Owner to check the invite email.</p>
+
+                    <p><strong>Everything is read-only.</strong><br>
+                    Your role is <strong>Viewer</strong>. Ask an Owner to change it to <strong>Editor</strong>.</p>
+
+                    <h3>21.2 Saving</h3>
+                    <p><strong>The status stays on "Unsaved changes".</strong><br>
+                    A save is pending or blocked. Select <strong>Save</strong> and read any banner. If a conflict banner appears, see 18.3.</p>
+
+                    <p><strong>"The last save failed" will not clear.</strong><br>
+                    Retry once. Then check network access to the API, and whether your session expired (the next request will redirect you to sign in). Export a copy before reloading.</p>
+
+                    <p><strong>"Someone else saved this diagram first."</strong><br>
+                    Version conflict. <strong>Reload latest</strong> to keep their work, or <strong>Overwrite</strong> to replace it with yours. See 18.3.</p>
+
+                    <h3>21.3 Editing</h3>
+                    <p><strong>I cannot add an element from the palette.</strong><br>
+                    Either you are read-only, or the active viewpoint does not admit that element. Select <strong>Show all</strong> in the viewpoint banner to override the filter.</p>
+
+                    <p><strong>Dragging a palette tile does nothing.</strong><br>
+                    The drag must end over the canvas. On small screens the palette is an overlay, so drag to the visible part of the canvas, or simply click the tile.</p>
+
+                    <p><strong>An element I added is instantly inside another one.</strong><br>
+                    You dropped it inside a container. It is now a child. Use <strong>Parent Group</strong> in <strong>Properties</strong> and set it to <strong>None</strong> to detach it.</p>
+
+                    <p><strong>My connection will not appear.</strong><br>
+                    Check whether you dropped it on the same shape (self-relationships are rejected and reported as errors) or on empty canvas. Drag from the body of the source to the body of the target.</p>
+
+                    <p><strong>Double-clicking a shape opens another view instead of renaming it.</strong><br>
+                    The shape has a <strong>Link to View</strong>. Rename it from <strong>Properties</strong>, or clear the link.</p>
+
+                    <h3>21.4 Views and data</h3>
+                    <p><strong>My catalogue is empty.</strong><br>
+                    Either the model has no elements yet (<strong>The model has no elements yet.</strong>) or the search filter and viewpoint scope exclude everything. Clear <strong>Search elements</strong> and untick <strong>Only elements this viewpoint admits</strong>.</p>
+
+                    <p><strong>The matrix is empty.</strong><br>
+                    No element of the chosen row or column layer is in scope. Change a layer, untick viewpoint scoping, or tick <strong>Show elements with no relationship</strong>.</p>
+
+                    <p><strong>A custom property is not showing as a column.</strong><br>
+                    Catalogue views expose up to eight custom property keys; beyond that, use <strong>Export CSV</strong>, which includes all of them.</p>
+
+                    <h3>21.5 Validation</h3>
+                    <p><strong>A relationship is flagged as not allowed even though it looks reasonable.</strong><br>
+                    ArchiMate 3.2 does define which relationship types are permitted between which element types. Open the issue detail (<code>Source → Target · type</code>) and either change the type or change an endpoint's type. The report is accurate; the notation is strict.</p>
+
+                    <p><strong>The Problems badge shows a number but the list is empty.</strong><br>
+                    A severity filter is hiding the issues. Switch to <strong>All problems</strong>.</p>
+
+                    <h3>21.6 AI assistant</h3>
+                    <p><strong>"Add your AI API key in the assistant settings first."</strong><br>
+                    No key is stored for your account. Open <strong>Settings</strong> and save one.</p>
+
+                    <p><strong>"Open a diagram before asking the assistant."</strong><br>
+                    The assistant needs a saved diagram identity. Open a diagram from the project page rather than a brand-new unsaved view.</p>
+
+                    <p><strong>"The AI provider did not answer in time."</strong><br>
+                    Shorten the prompt, reduce the scope (one layer, one phase), or use a faster model.</p>
+
+                    <p><strong>The plan is empty or unhelpful.</strong><br>
+                    Anchor the request: choose a phase and a domain, name the elements you expect, and state what to keep. See 16.4.</p>
+
+                    <h3>21.7 Import and export</h3>
+                    <p><strong>Import fails with "Ensure it is valid XML".</strong><br>
+                    The file is not an Archi exchange file, or it is truncated. Try opening it in Archi first; if Archi accepts it, export again from Archi and retry.</p>
+
+                    <p><strong>A PNG is blank or clipped.</strong><br>
+                    Export exports the current view's canvas. Content placed far outside the frame is clipped — pan so the whole view is inside the canvas, or zoom out, then export.</p>
+
+                    <p><strong>Exported CSV looks garbled in Excel.</strong><br>
+                    Open it via <strong>Data → From Text/CSV</strong> and choose UTF-8. The files include a byte-order mark, so double-clicking normally works in modern Excel.</p>
+
+                    <h3>21.8 Performance</h3>
+                    <p><strong>The editor is slow on a large diagram.</strong><br>
+                    Split oversized views: 40–60 shapes per view keeps editing responsive, and viewpoints make splitting natural. Collapse containers you are not editing, close the <strong>Model Repository</strong> search while dragging, and prefer a <strong>Catalogue</strong> view over a giant canvas view for inventory work.</p>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="appendix-a--role-permission-matrix">
+                    <h2>Appendix A — Role permission matrix</h2>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Capability</th>
+                                    <th>Owner</th>
+                                    <th>Editor</th>
+                                    <th>Viewer</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>View project and its diagrams</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                </tr>
+                                <tr>
+                                    <td>Open a diagram</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✔ (read-only)</td>
+                                </tr>
+                                <tr>
+                                    <td>Create / edit / delete diagrams</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Edit the model on the canvas</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Edit element metadata</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Create named snapshots</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Restore a revision</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Preview revisions</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                </tr>
+                                <tr>
+                                    <td>Use the AI assistant</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Import <code>.archimate</code></td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Export PNG / SVG / ArchiMate / CSV</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                </tr>
+                                <tr>
+                                    <td>Rename elements from a catalogue</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Change a view's content type or viewpoint</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Invite members</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Change member roles</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Remove members</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Edit the project (name, framework, description)</td>
+                                    <td>✔</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                </tr>
+                                <tr>
+                                    <td>Delete the project</td>
+                                    <td>✔</td>
+                                    <td>✕</td>
+                                    <td>✕</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="appendix-b--element-palette-reference">
+                    <h2>Appendix B — Element palette reference</h2>
+                    <p>The palette groups elements the way Archi groups them. Colour dots match the ArchiMate layer colours.</p>
+
+                    <h3>Composite (Generic layer, dashed outline)</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Element</th>
+                                    <th>Note</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Grouping</strong></td>
+                                    <td>A container for organising other elements; nests children</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Location</strong></td>
+                                    <td>A place where elements are located; nests children</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>Motivation</h3>
+                    <p><strong>Stakeholder</strong>, <strong>Driver</strong>, <strong>Assessment</strong>, <strong>Goal</strong>, <strong>Outcome</strong>, <strong>Principle</strong>, <strong>Requirement</strong>, <strong>Constraint</strong>, <strong>Meaning</strong>, <strong>Value</strong>.</p>
+
+                    <h3>Strategy</h3>
+                    <p><strong>Resource</strong>, <strong>Capability</strong>, <strong>Course of Action</strong>, <strong>Value Stream</strong>.</p>
+
+                    <h3>Business</h3>
+                    <p><strong>Business Actor</strong> (shown as <em>Actor</em>), <strong>Business Role</strong> (<em>Role</em>), <strong>Business Collaboration</strong> (<em>Collaboration</em>), <strong>Business Interface</strong> (<em>Interface</em>), <strong>Business Process</strong> (<em>Process</em>), <strong>Business Function</strong> (<em>Function</em>), <strong>Business Interaction</strong> (<em>Interaction</em>), <strong>Business Event</strong> (<em>Event</em>), <strong>Business Service</strong> (<em>Service</em>), <strong>Business Object</strong> (<em>Object</em>), <strong>Contract</strong>, <strong>Representation</strong>, <strong>Product</strong>.</p>
+
+                    <h3>Application</h3>
+                    <p><strong>Application Component</strong> (<em>Component</em>), <strong>Application Collaboration</strong> (<em>Collaboration</em>), <strong>Application Interface</strong> (<em>Interface</em>), <strong>Application Function</strong> (<em>Function</em>), <strong>Application Interaction</strong> (<em>Interaction</em>), <strong>Application Process</strong> (<em>Process</em>), <strong>Application Event</strong> (<em>Event</em>), <strong>Application Service</strong> (<em>Service</em>), <strong>Data Object</strong>.</p>
+
+                    <h3>Tech & Physical</h3>
+                    <p><strong>Technology Node</strong> (<em>Node</em>), <strong>Technology Device</strong> (<em>Device</em>), <strong>System Software</strong> (<em>Sys. Software</em>), <strong>Technology Collaboration</strong> (<em>Collaboration</em>), <strong>Technology Interface</strong> (<em>Interface</em>), <strong>Path</strong>, <strong>Communication Network</strong> (<em>Network</em>), <strong>Technology Function</strong> (<em>Function</em>), <strong>Technology Process</strong> (<em>Process</em>), <strong>Technology Interaction</strong> (<em>Interaction</em>), <strong>Technology Event</strong> (<em>Event</em>), <strong>Technology Service</strong> (<em>Service</em>), <strong>Artifact</strong>, <strong>Equipment</strong>, <strong>Facility</strong>, <strong>Distribution Network</strong> (<em>Distr. Network</em>), <strong>Material</strong>.</p>
+
+                    <h3>Implementation</h3>
+                    <p><strong>Work Package</strong>, <strong>Deliverable</strong>, <strong>Implementation Event</strong> (<em>Event</em>), <strong>Plateau</strong>, <strong>Gap</strong>.</p>
+
+                    <h3>Connectors</h3>
+                    <p><strong>Junction</strong> (dashed outline).</p>
+
+                    <h3>Notes on palette behaviour</h3>
+                    <ul>
+                        <li>The tile shows the short display label; the full ArchiMate type (for example <em>Business Actor</em>) is what the element is stored as.</li>
+                        <li>Composite elements (<code>Grouping</code>, <code>Location</code>, <code>Junction</code>) are drawn dashed and are the only elements that contain children.</li>
+                        <li>The palette is viewpoint-filtered. The banner reports <strong>Showing N of M elements</strong>; <strong>Show all</strong> temporarily removes the filter.</li>
+                    </ul>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="appendix-c--relationship-reference">
+                    <h2>Appendix C — Relationship reference</h2>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Relationship</th>
+                                    <th>Type value</th>
+                                    <th>Typical use</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Flow</strong></td>
+                                    <td><code>flow</code></td>
+                                    <td>Transfer of something between elements</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Association</strong></td>
+                                    <td><code>association</code></td>
+                                    <td>Unspecified relationship</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Triggering</strong></td>
+                                    <td><code>triggering</code></td>
+                                    <td>Temporal or causal precedence</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Realization</strong></td>
+                                    <td><code>realization</code></td>
+                                    <td>One element makes another concrete</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Specialization</strong></td>
+                                    <td><code>specialization</code></td>
+                                    <td>A is a kind of B</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Serving</strong></td>
+                                    <td><code>serving</code></td>
+                                    <td>One element provides functionality to another</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Access</strong></td>
+                                    <td><code>access</code></td>
+                                    <td>Behaviour reads, writes or modifies an object</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Influence</strong></td>
+                                    <td><code>influence</code></td>
+                                    <td>One element affects another's implementation</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Composition</strong></td>
+                                    <td><code>composition</code></td>
+                                    <td>Strong whole/part</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Aggregation</strong></td>
+                                    <td><code>aggregation</code></td>
+                                    <td>Weak whole/part</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Assignment</strong></td>
+                                    <td><code>assignment</code></td>
+                                    <td>Active structure performs behaviour</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p>Setting the type: select the relationship and use <strong>Relationship Type</strong> in the <strong>Properties</strong> tab, or change the palette dropdown before drawing. Not every type is legal between every pair of element types — validation tells you immediately, and Appendix D explains the codes.</p>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="appendix-d--validation-codes">
+                    <h2>Appendix D — Validation codes</h2>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Severity</th>
+                                    <th>Message</th>
+                                    <th>Typical fix</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>unnamed-element</code></td>
+                                    <td>Warning</td>
+                                    <td>Element has no name.</td>
+                                    <td>Rename it</td>
+                                </tr>
+                                <tr>
+                                    <td><code>unknown-element-type</code></td>
+                                    <td>Warning</td>
+                                    <td>Unknown ArchiMate type, so its relationships were not checked.</td>
+                                    <td>Set a valid type in <strong>Properties</strong></td>
+                                </tr>
+                                <tr>
+                                    <td><code>missing-element</code></td>
+                                    <td>Error</td>
+                                    <td>Relationship points at an element that is not in the model.</td>
+                                    <td>Delete the relationship; usually caused by an import</td>
+                                </tr>
+                                <tr>
+                                    <td><code>self-relationship</code></td>
+                                    <td>Error</td>
+                                    <td>Element relates to itself.</td>
+                                    <td>Connect to a different element, or delete it</td>
+                                </tr>
+                                <tr>
+                                    <td><code>duplicate-relationship</code></td>
+                                    <td>Warning</td>
+                                    <td>The same relationship is modelled more than once.</td>
+                                    <td>Delete one</td>
+                                </tr>
+                                <tr>
+                                    <td><code>pair-not-allowed</code></td>
+                                    <td>Error</td>
+                                    <td>ArchiMate does not allow any relationship between these types.</td>
+                                    <td>Change an endpoint's type</td>
+                                </tr>
+                                <tr>
+                                    <td><code>type-not-allowed</code></td>
+                                    <td>Error</td>
+                                    <td>ArchiMate does not allow this relationship type between these types.</td>
+                                    <td>Change the relationship type</td>
+                                </tr>
+                                <tr>
+                                    <td><code>mixed-junction</code></td>
+                                    <td>Warning</td>
+                                    <td>A junction must join one relationship type.</td>
+                                    <td>Use one type per junction, or split it</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="appendix-e--deployment-and-administration">
+                    <h2>Appendix E — Deployment and administration</h2>
+                    <p>This appendix is for the person deploying or maintaining EAsync. End users can stop reading.</p>
+
+                    <h3>E.1 What is deployed</h3>
+                    <p>Two parts:</p>
+                    <ol>
+                        <li>A <strong>static web client</strong> — the output of <code>npm run build</code>. It can be served by any web server.</li>
+                        <li>A <strong>REST API</strong> — a separate service that stores projects, diagrams, members, revisions and AI settings, and brokers OAuth sign-in. It is not covered in detail here; the client only needs its base URL.</li>
+                    </ol>
+
+                    <h3>E.2 Build</h3>
+                    <pre><code class="language-bash">npm install
+npm run build</code></pre>
+                    <p>The production build is written to <code>dist/easync/browser/</code>. The build uses a base href of <code>/easync/</code>, so the application expects to be served from a path ending in <code>/easync/</code>.</p>
+
+                    <h3>E.3 Web server configuration</h3>
+                    <p>Upload the <strong>contents</strong> of <code>dist/easync/browser/</code> (not the folder itself) to the web root path that matches <code>/easync/</code>.</p>
+                    <p>Because EAsync is a single-page application, deep links such as <code>/easync/projects/12</code> must return <code>index.html</code>:</p>
+                    <p><strong>Apache</strong></p>
+                    <pre><code class="language-apache">FallbackResource /easync/index.html</code></pre>
+                    <p><strong>Nginx</strong></p>
+                    <pre><code class="language-nginx">location /easync/ {
+    try_files $uri $uri/ /easync/index.html;
+}</code></pre>
+                    <p>Without this, signing in from a callback URL, and refreshing any page other than the root, return 404.</p>
+
+                    <h3>E.4 Configuring the API base URL</h3>
+                    <p>The client resolves its API base URL in this order:</p>
+                    <ol>
+                        <li><code>window.__EASYNC_CONFIG__.apiBaseUrl</code>, if present.</li>
+                        <li>The compiled-in default from <code>src/app/core/api.config.ts</code>.</li>
+                    </ol>
+                    <p>To point a deployment at its API without rebuilding, inject the configuration in <code>index.html</code> <strong>before</strong> the application bundle:</p>
+                    <pre><code class="language-html">&lt;script&gt;
+  window.__EASYNC_CONFIG__ = { apiBaseUrl: 'https://rekapi.unimas.my/easync' };
+&lt;/script&gt;</code></pre>
+                    <p>The default value in the source is <code>http://localhost:8080/</code>, which is intended for local development only — always set the override (or change the constant) for a real deployment.</p>
+
+                    <h3>E.5 API requirements</h3>
+                    <ul>
+                        <li><strong>CORS</strong>: the API must allow the client's origin, for example <code>https://ia.unimas.my</code>.</li>
+                        <li><strong>Frontend URL</strong>: set the API's <code>frontend-url</code> to the client's base path, for example <code>https://ia.unimas.my/easync</code>, so the OAuth callback returns to the right place.</li>
+                        <li><strong>Auth providers</strong>: enable the providers your organisation uses. The sign-in page renders whatever the API reports from <code>GET /api/auth/providers</code>.</li>
+                        <li><strong>Developer login</strong>: leave disabled in production. The client only shows the developer form in a development build <em>and</em> the API only honours it when enabled server-side.</li>
+                    </ul>
+
+                    <h3>E.6 Endpoints the client uses</h3>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Method and path</th>
+                                    <th>Purpose</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>GET /api/auth/providers</code></td>
+                                    <td>Sign-in providers for the login page</td>
+                                </tr>
+                                <tr>
+                                    <td><code>POST /api/auth/session</code></td>
+                                    <td>Exchange the OAuth hand-off token for a session</td>
+                                </tr>
+                                <tr>
+                                    <td><code>POST /api/auth/dev-login</code></td>
+                                    <td>Development-only sign-in</td>
+                                </tr>
+                                <tr>
+                                    <td><code>POST /api/auth/refresh</code></td>
+                                    <td>Refresh an expired access token</td>
+                                </tr>
+                                <tr>
+                                    <td><code>POST /api/auth/logout</code></td>
+                                    <td>Revoke the session</td>
+                                </tr>
+                                <tr>
+                                    <td><code>GET/POST /api/projects</code></td>
+                                    <td>List and create projects</td>
+                                </tr>
+                                <tr>
+                                    <td><code>GET/PUT/DELETE /api/projects/{id}</code></td>
+                                    <td>Read, update and delete a project</td>
+                                </tr>
+                                <tr>
+                                    <td><code>GET/POST /api/projects/{id}/…</code></td>
+                                    <td>Project members and diagrams</td>
+                                </tr>
+                                <tr>
+                                    <td><code>GET/POST /api/diagrams</code>, <code>/api/diagrams/{id}</code></td>
+                                    <td>Diagram read and save</td>
+                                </tr>
+                                <tr>
+                                    <td><code>GET /api/me/ai-settings</code>, <code>PUT /api/me/ai-settings</code></td>
+                                    <td>The signed-in user's AI provider settings</td>
+                                </tr>
+                                <tr>
+                                    <td><code>POST /api/diagrams/{id}/ai/plan</code></td>
+                                    <td>Request an AI plan</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>E.7 Upgrading</h3>
+                    <ol>
+                        <li>Build the new client.</li>
+                        <li>Upload it over the previous release, keeping the folder layout.</li>
+                        <li>Hard-refresh a browser to confirm the new bundle loads.</li>
+                        <li>Confirm the SPA fallback still applies (open a deep link directly).</li>
+                    </ol>
+                    <p>The client stores the model as views, elements and relationships inside each diagram's save payload, so upgrades do not require a data migration for the features described in this manual.</p>
+
+                    <h3>E.8 Housekeeping</h3>
+                    <ul>
+                        <li><strong>Revisions grow.</strong> Automatic revisions accumulate. If the API exposes a retention setting, agree a retention window with the architecture team.</li>
+                        <li><strong>AI keys are per user and server-side.</strong> Rotating a key is done in the assistant's <strong>Settings</strong> panel; removing it takes effect immediately.</li>
+                        <li><strong>Backups.</strong> The <code>.archimate</code> export (17.3) is a complete, tool-independent copy of a diagram. Encourage periodic exports of any model that matters.</li>
+                    </ul>
+                </section>
+
+                <hr class="my-10 border-slate-200">
+
+                <section id="appendix-f--glossary">
+                    <h2>Appendix F — Glossary</h2>
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr>
+                                    <th>Term</th>
+                                    <th>Meaning</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>ADM</strong></td>
+                                    <td>Architecture Development Method — the TOGAF delivery cycle, from Preliminary through Phase H</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>ArchiMate</strong></td>
+                                    <td>The Open Group's enterprise architecture modelling notation; EAsync models ArchiMate 3.2</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Baseline</strong></td>
+                                    <td>The plateau describing the architecture as it is today</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>BDAT</strong></td>
+                                    <td>The MyGovEA domain grouping: <em>Perkhidmatan</em> (services), <em>Data</em>, <em>Aplikasi</em> (applications), <em>Teknologi</em> (technology)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Catalogue view</strong></td>
+                                    <td>A table presentation of model elements</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Composition</strong></td>
+                                    <td>A whole/part relationship; in EAsync also drawn implicitly by containment</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Diagram</strong></td>
+                                    <td>The editable container: one model, many views, one version history</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Domain</strong></td>
+                                    <td>A framework segment recorded on an element (business, data, application, technology, BDAT…)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Element</strong></td>
+                                    <td>A model object with an ArchiMate type, a name and metadata</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Framework</strong></td>
+                                    <td>TOGAF or MyGovEA; sets the phases, principles and artefacts that steer the assistant</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Gap analysis</strong></td>
+                                    <td>Comparing two plateaus to list what is retired, introduced, aligned or retained</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Junction</strong></td>
+                                    <td>A connector element that joins relationships of a single type</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Layer</strong></td>
+                                    <td>The ArchiMate grouping of element types (Strategy, Business, Application, Technology, Motivation, Implementation…)</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Matrix view</strong></td>
+                                    <td>A layer-versus-layer grid of relationship counts</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Model</strong></td>
+                                    <td>The set of elements and relationships shared by all views of a diagram</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Plateau</strong></td>
+                                    <td>A point in the migration timeline: Baseline, Transition or Target</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Read-only</strong></td>
+                                    <td>The mode a Viewer gets: inspect, navigate and export, but no editing</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Relationship</strong></td>
+                                    <td>A typed, directed link between two elements</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Revision</strong></td>
+                                    <td>A recorded state of a diagram, either automatic or a named snapshot</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Role</strong></td>
+                                    <td>A member's permission level in a project: Owner, Editor or Viewer</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Snapshot</strong></td>
+                                    <td>A named revision created deliberately</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Target</strong></td>
+                                    <td>The plateau describing the intended future architecture</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Transition</strong></td>
+                                    <td>An intermediate plateau between baseline and target</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>View</strong></td>
+                                    <td>A presentation of the model: Diagram, Catalogue or Matrix</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Viewpoint</strong></td>
+                                    <td>A named purpose for a view, defining its concern, stakeholders and admitted element types</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Work package</strong></td>
+                                    <td>A TOGAF implementation unit; the plateau planner groups proposed changes into these</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-center italic text-slate-500 mt-12 mb-8">End of manual.</p>
+                </section>
+                
+            </article>
+        </div>
+        
+        <!-- Back to top button -->
+        <a href="#" class="fixed bottom-8 right-8 bg-slate-800 text-white p-3 rounded-full shadow-lg hover:bg-slate-700 transition-colors opacity-0 invisible" id="back-to-top">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+        </a>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Mobile Menu Toggle
+            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+            const closeSidebarBtn = document.getElementById('close-sidebar-btn');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            const navLinks = document.querySelectorAll('.nav-link');
+
+            function toggleSidebar() {
+                sidebar.classList.toggle('-translate-x-full');
+                overlay.classList.toggle('hidden');
+            }
+
+            mobileMenuBtn.addEventListener('click', toggleSidebar);
+            closeSidebarBtn.addEventListener('click', toggleSidebar);
+            overlay.addEventListener('click', toggleSidebar);
+
+            // Close sidebar when clicking a link on mobile
+            navLinks.forEach(link => {
+                link.addEventListener('click', () => {
+                    if (window.innerWidth < 1024) { // lg breakpoint
+                        toggleSidebar();
+                    }
+                });
+            });
+
+            // Intersection Observer for highlighting active TOC links
+            const sections = document.querySelectorAll('section[id]');
+            const tocLinks = document.querySelectorAll('#toc-nav .nav-link');
+
+            const observerOptions = {
+                root: null,
+                rootMargin: '-20% 0px -60% 0px',
+                threshold: 0
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.getAttribute('id');
+                        tocLinks.forEach(link => {
+                            link.classList.remove('active');
+                            if (link.getAttribute('href') === `#${id}`) {
+                                link.classList.add('active');
+                                // Ensure active link is visible in scrollable sidebar
+                                link.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                            }
+                        });
+                    }
+                });
+            }, observerOptions);
+
+            sections.forEach(section => {
+                observer.observe(section);
+            });
+
+            // Back to top button visibility
+            const backToTopBtn = document.getElementById('back-to-top');
+            window.addEventListener('scroll', () => {
+                if (window.scrollY > 500) {
+                    backToTopBtn.classList.remove('opacity-0', 'invisible');
+                    backToTopBtn.classList.add('opacity-100', 'visible');
+                } else {
+                    backToTopBtn.classList.add('opacity-0', 'invisible');
+                    backToTopBtn.classList.remove('opacity-100', 'visible');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
