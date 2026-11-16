@@ -1,6 +1,11 @@
 import { Service, effect, inject } from '@angular/core';
-import { getArchimateTypeInfo } from '../models/archimate.models';
-import type { GlobalElement, PaletteItem, Point2D, RelationshipType } from '../models/archimate.models';
+import { compareLayers, getArchimateTypeInfo, layerOf } from '../models/archimate.models';
+import type {
+  ArchimateLayer,
+  PaletteItem,
+  Point2D,
+  RelationshipType,
+} from '../models/archimate.models';
 import type { DiagramDto, DiagramViewDto } from '../models/api.models';
 import type {
   DiagramConnectionInfo,
@@ -14,6 +19,7 @@ import type {
   ShapeSummary,
   SnapshotSelection,
   SnapshotShape,
+  ViewContentType,
   ViewSnapshot,
   ViewSummary,
 } from '../models/diagram.models';
@@ -24,8 +30,18 @@ import type {
   DiagramConnection,
   StoredView,
 } from '../models/fabric.types';
+import {
+  archimateTypeForIcon,
+  compactKey,
+  emptyModelElement,
+  iconForType,
+  paletteItemFor,
+  relationshipKey,
+} from '../models/model.models';
+import type { ModelElement, ModelRelationship } from '../models/model.models';
 import { HistoryStack } from '../utils/history-stack';
 import { ArchimateImportService } from './archimate-import.service';
+import { buildArchimateExchange, type ExchangeView } from './archimate-export.service';
 import {
   generatePathString,
   getPointOnLine,
@@ -65,8 +81,12 @@ export interface DragPayload {
   label: string;
   color: string;
   icon: string;
-  layer: string;
+  layer: ArchimateLayer;
   archimateId?: string;
+  /** ArchiMate type; omitted for palette tiles, whose label is already the type. */
+  archimateType?: string;
+  /** Model element to reuse, so dropping the same thing twice does not create a second element. */
+  elementKey?: string;
 }
 
 /** Coerce persisted snapshot fields so an older or hand-edited payload cannot break rendering. */
@@ -84,10 +104,13 @@ interface AddShapeOptions {
   icon: string;
   x: number;
   y: number;
-  layer: string;
+  layer: ArchimateLayer;
   width?: number | null;
   height?: number | null;
   forceId?: string | null;
+  /** Reuses an existing model element instead of creating one for this shape. */
+  elementKey?: string | null;
+  archimateType?: string | null;
   parentId?: string | null;
   isImport?: boolean;
 }
@@ -98,7 +121,7 @@ interface CopiedShape {
   label: string;
   color: string;
   icon: string;
-  layer: string;
+  layer: ArchimateLayer;
   left: number;
   top: number;
   width: number | null;
@@ -142,12 +165,11 @@ export class DiagramCanvasService {
 
   private connections: DiagramConnection[] = [];
   private readonly views = new Map<string, StoredView>([
-    [DEFAULT_VIEW_ID, { name: 'Default View', objects: [], connections: [] }],
+    [DEFAULT_VIEW_ID, { name: 'Default View', viewpoint: null, contentType: 'diagram', objects: [], connections: [] }],
   ]);
   private readonly parsedViews = new Map<string, ParsedView>();
   /** Serialized state per view, so inactive views can be saved and restored losslessly. */
   private readonly snapshots = new Map<string, ViewSnapshot>();
-  private readonly repository = new Map<string, GlobalElement>();
   private activeViewId = DEFAULT_VIEW_ID;
   /** View to render as soon as the canvas exists (set when a diagram loads before attach). */
   private pendingViewId: string | null = null;
@@ -383,8 +405,7 @@ export class DiagramCanvasService {
     for (const obj of canvas.getObjects()) {
       const shape = obj as ArchimateShape;
       if (!shape.isShape) continue;
-      const icon = this.iconOf(shape);
-      if (!GROUP_SHAPE_ICONS.includes(icon)) continue;
+      if (!this.isContainerShape(shape)) continue;
       for (const child of shape.getObjects()) {
         if (child.type === 'textbox') child.set('fill', isDark ? '#e2e8f0' : '#1e293b');
         if (child.type === 'rect') {
@@ -424,11 +445,14 @@ export class DiagramCanvasService {
     const centerX = (canvas.getWidth() / 2 - vpt[4]) / vpt[0];
     const centerY = (canvas.getHeight() / 2 - vpt[5]) / vpt[3];
 
+    const dropped = item as Partial<DragPayload>;
     this.addShape({
       label: item.label,
       color: item.color,
       icon: item.icon,
       layer: item.layer,
+      archimateType: dropped.archimateType ?? item.label,
+      elementKey: dropped.elementKey ?? null,
       x: Math.round((centerX + (Math.random() * 40 - 20)) / GRID_SIZE) * GRID_SIZE,
       y: Math.round((centerY + (Math.random() * 40 - 20)) / GRID_SIZE) * GRID_SIZE,
     });
@@ -452,6 +476,8 @@ export class DiagramCanvasService {
       color: payload.color,
       icon: payload.icon,
       layer: payload.layer,
+      archimateType: payload.archimateType ?? payload.label,
+      elementKey: payload.elementKey ?? null,
       x: Math.round(worldX / GRID_SIZE) * GRID_SIZE,
       y: Math.round(worldY / GRID_SIZE) * GRID_SIZE,
       forceId: payload.archimateId ?? null,
@@ -468,7 +494,7 @@ export class DiagramCanvasService {
     return this.allShapes().map((shape) => ({
       id: shape.archimateId,
       label: this.labelOf(shape),
-      layer: shape.archimateLayer || 'Other',
+      layer: layerOf(shape.archimateLayer),
       icon: this.iconOf(shape),
       parentId: shape.parentId ?? null,
       left: Math.round(shape.left ?? 0),
@@ -539,7 +565,7 @@ export class DiagramCanvasService {
       | fabric.Textbox
       | undefined;
     textbox?.set('text', text);
-    this.syncGlobalElementName(shape.archimateId, text);
+    this.syncElementName(shape, text);
     shape.setCoords();
     return true;
   }
@@ -684,6 +710,7 @@ export class DiagramCanvasService {
     const elementId = options.forceId ?? this.generateElementId();
     shape.isShape = true;
     shape.archimateId = elementId;
+    shape.archimateElementKey = compactKey('el', options.elementKey ?? elementId);
     shape.archimateLayer = options.layer;
     shape.originalColor = options.color;
     shape.archimateDoc = '';
@@ -701,15 +728,7 @@ export class DiagramCanvasService {
     canvas.add(shape);
     if (isGroupShape) shape.sendToBack();
 
-    if (!this.repository.has(elementId)) {
-      this.repository.set(elementId, {
-        id: elementId,
-        label: options.label,
-        color: options.color,
-        icon: options.icon,
-        layer: options.layer,
-      });
-    }
+    this.ensureElement(shape, options.archimateType ?? null);
 
     if (!this.store.connectionMode() && !options.isImport) {
       canvas.setActiveObject(shape);
@@ -723,9 +742,58 @@ export class DiagramCanvasService {
     return `el_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
   }
 
-  private syncGlobalElementName(id: string, name: string): void {
-    const entry = this.repository.get(id);
-    if (entry) entry.label = name;
+  /**
+   * Guarantees a shape has a model element. Derived elements are registered quietly because the
+   * shape that produced them is already part of the pending change.
+   */
+  private ensureElement(shape: ArchimateShape, archimateType: string | null): void {
+    const key = shape.archimateElementKey;
+    if (!key || this.store.elementFor(key)) return;
+    const layer = layerOf(shape.archimateLayer);
+    this.store.registerElements([
+      {
+        ...emptyModelElement(
+          key,
+          this.labelOf(shape) || 'Untitled',
+          archimateType ?? archimateTypeForIcon(this.iconOf(shape), layer),
+          layer,
+        ),
+        documentation: shape.archimateDoc ?? '',
+      },
+    ]);
+  }
+
+  /** Mirrors a rename onto the element, so every occurrence of it reads the same name. */
+  private syncElementName(shape: ArchimateShape, name: string): void {
+    const key = shape.archimateElementKey;
+    const element = this.store.elementFor(key);
+    if (!key || !element || element.name === name) return;
+    const renamed = { ...element, name };
+    this.store.upsertElement(renamed);
+    this.applyElementToOccurrences(renamed);
+  }
+
+  /** Drops the element only when this was its last occurrence anywhere in the diagram. */
+  private releaseElement(shape: ArchimateShape): void {
+    const key = shape.archimateElementKey;
+    if (!key) return;
+
+    const usedOnCanvas = this.allShapes().some(
+      (other) => other !== shape && other.archimateElementKey === key,
+    );
+    if (usedOnCanvas) return;
+
+    // The active view's snapshot predates this deletion, so ignore the occurrence being removed
+    // there while still counting the same element as used by any other view.
+    const usedElsewhere = [...this.snapshots.entries()].some(([viewId, snapshot]) =>
+      (snapshot.shapes ?? []).some((other) => {
+        if ((other.elementKey || other.id) !== key) return false;
+        return !(viewId === this.activeViewId && other.id === shape.archimateId);
+      }),
+    );
+    if (usedElsewhere) return;
+
+    this.store.removeElement(key);
   }
 
   // --- Connections ---------------------------------------------------------
@@ -1414,7 +1482,7 @@ export class DiagramCanvasService {
         center.y <= bounds.top + bounds.height;
       if (!inside) continue;
 
-      if (GROUP_SHAPE_ICONS.includes(this.iconOf(candidate)) && !candidate.isCollapsed) {
+      if (this.isContainerShape(candidate) && !candidate.isCollapsed) {
         movedShape.parentId = candidate.archimateId;
         break;
       }
@@ -1882,6 +1950,44 @@ export class DiagramCanvasService {
   }
 
   /**
+   * Selects an occurrence of a model element, so a problem in the validation panel can jump to
+   * the shape that shows it. Returns false when the element is not drawn in this view.
+   */
+  selectElement(elementKey: string): boolean {
+    const shape = this.allShapes().find((item) => item.archimateElementKey === elementKey);
+    if (!shape) return false;
+    this.selectByKey(shape.archimateId);
+    this.ensureVisible(shape);
+    return true;
+  }
+
+  /** Pans just enough to bring an object into view; the zoom stays where the user left it. */
+  private ensureVisible(object: fabric.Object): void {
+    const canvas = this.canvas;
+    if (!canvas) return;
+    const vpt = canvas.viewportTransform ?? [1, 0, 0, 1, 0, 0];
+    const zoom = vpt[0] || 1;
+    const bounds = object.getBoundingRect(true);
+    const left = -vpt[4] / zoom;
+    const top = -vpt[5] / zoom;
+    const right = left + canvas.getWidth() / zoom;
+    const bottom = top + canvas.getHeight() / zoom;
+    const visible =
+      bounds.left >= left &&
+      bounds.top >= top &&
+      bounds.left + bounds.width <= right &&
+      bounds.top + bounds.height <= bottom;
+    if (visible) return;
+
+    const center = object.getCenterPoint();
+    vpt[4] = canvas.getWidth() / 2 - center.x * zoom;
+    vpt[5] = canvas.getHeight() / 2 - center.y * zoom;
+    canvas.setViewportTransform(vpt);
+    this.syncPatternOffset();
+    canvas.requestRenderAll();
+  }
+
+  /**
    * Bendpoint handles are transient helpers: whenever one is selected or dragged,
    * the connection it belongs to is treated as the active object so the line keeps
    * its highlight, properties and toolbar.
@@ -1928,6 +2034,36 @@ export class DiagramCanvasService {
     canvas.requestRenderAll();
   }
 
+  /**
+   * Counts where each element is drawn: once per shape on the canvas, and once per shape in the
+   * stored snapshots of the views that are not currently loaded.
+   */
+  private elementUsage(): Map<string, { occurrences: number; views: number }> {
+    const usage = new Map<string, { occurrences: number; views: Set<string> }>();
+    const record = (key: string, viewId: string): void => {
+      const entry = usage.get(key) ?? { occurrences: 0, views: new Set<string>() };
+      entry.occurrences++;
+      entry.views.add(viewId);
+      usage.set(key, entry);
+    };
+
+    for (const [viewId, snapshot] of this.snapshots) {
+      if (viewId === this.activeViewId) continue;
+      for (const shape of snapshot.shapes ?? []) record(compactKey('el', shape.elementKey || shape.id), viewId);
+    }
+    for (const shape of this.allShapes()) {
+      const key = shape.archimateElementKey;
+      if (key) record(key, this.activeViewId);
+    }
+
+    return new Map(
+      [...usage].map(([key, entry]) => [
+        key,
+        { occurrences: entry.occurrences, views: entry.views.size },
+      ]),
+    );
+  }
+
   private refreshTree(): void {
     const canvas = this.canvas;
     this.liveObjects = new Map();
@@ -1935,20 +2071,35 @@ export class DiagramCanvasService {
     const views: ViewSummary[] = [...this.views.entries()].map(([id, view]) => ({
       id,
       name: view.name,
+      viewpoint: view.viewpoint,
+      contentType: view.contentType,
       isActive: id === this.activeViewId,
     }));
     this.store.setViews(views);
     this.store.setActiveView(this.activeViewId);
 
-    const repositoryLayers = new Map<string, RepositoryLayer['items']>();
-    for (const entry of this.repository.values()) {
-      const items = repositoryLayers.get(entry.layer) ?? [];
-      items.push({ id: entry.id, label: entry.label, icon: entry.icon, color: entry.color });
-      repositoryLayers.set(entry.layer, items);
+    // The repository is the model itself, so it lists every element once no matter how many
+    // views draw it, with a badge saying where it is already used.
+    const usage = this.elementUsage();
+    const repositoryLayers = new Map<ArchimateLayer, RepositoryLayer['items']>();
+    for (const element of this.store.elements()) {
+      const palette = paletteItemFor(element.archimateType);
+      const items = repositoryLayers.get(element.layer) ?? [];
+      const used = usage.get(element.key);
+      items.push({
+        id: element.key,
+        elementKey: element.key,
+        label: element.name,
+        icon: palette?.icon ?? '▭',
+        color: palette?.color ?? '#ffffff',
+        occurrences: used?.occurrences ?? 0,
+        viewCount: used?.views ?? 0,
+      });
+      repositoryLayers.set(element.layer, items);
     }
     this.store.repository.set(
       [...repositoryLayers.entries()]
-        .sort((a, b) => a[0].localeCompare(b[0]))
+        .sort((a, b) => compareLayers(a[0], b[0]))
         .map(([layer, items]) => ({
           layer,
           items: [...items].sort((a, b) => a.label.localeCompare(b.label)),
@@ -1956,7 +2107,7 @@ export class DiagramCanvasService {
     );
 
     const activeObject = this.resolveActiveObject();
-    const layerMap = new Map<string, ShapeSummary[]>();
+    const layerMap = new Map<ArchimateLayer, ShapeSummary[]>();
 
     if (canvas) {
       for (const obj of canvas.getObjects()) {
@@ -1969,7 +2120,7 @@ export class DiagramCanvasService {
           id: key,
           label: this.labelOf(shape),
           icon: this.iconOf(shape),
-          layer: shape.archimateLayer || 'Other',
+          layer: layerOf(shape.archimateLayer),
           color: shape.originalColor,
           isActive: activeObject === shape,
         };
@@ -1981,7 +2132,7 @@ export class DiagramCanvasService {
 
     this.store.layers.set(
       [...layerMap.entries()]
-        .sort((a, b) => a[0].localeCompare(b[0]))
+        .sort((a, b) => compareLayers(a[0], b[0]))
         .map(([layer, shapes]) => ({ layer, shapes })),
     );
 
@@ -2021,6 +2172,7 @@ export class DiagramCanvasService {
         doc: connection.archimateDoc ?? '',
         canCollapse: false,
         isCollapsed: false,
+        elementKey: '',
         availableParentGroups: [],
         availableLinkedViews: [],
       });
@@ -2036,9 +2188,7 @@ export class DiagramCanvasService {
     const rects = shape.getObjects().filter((child) => child.type === 'rect') as fabric.Rect[];
     const icon = this.iconOf(shape);
     const isGroupShape =
-      GROUP_SHAPE_ICONS.includes(icon) ||
-      shape.archimateLayer === 'Generic' ||
-      (shape.archimateLayer === 'Physical' && icon === '⌂');
+      this.isContainerShape(shape) || (shape.archimateLayer === 'Physical' && icon === '⌂');
     const hasCompositionTargets = this.connections.some(
       (conn) => conn.source === shape && conn.type === 'composition',
     );
@@ -2047,9 +2197,7 @@ export class DiagramCanvasService {
       .map((obj) => obj as ArchimateShape)
       .filter(
         (candidate) =>
-          candidate.isShape &&
-          candidate !== shape &&
-          GROUP_SHAPE_ICONS.includes(this.iconOf(candidate)),
+          candidate.isShape && candidate !== shape && this.isContainerShape(candidate),
       )
       .map((candidate) => ({ id: candidate.archimateId, name: this.labelOf(candidate) }));
 
@@ -2067,6 +2215,7 @@ export class DiagramCanvasService {
       doc: shape.archimateDoc ?? '',
       canCollapse: isGroupShape || hasCompositionTargets,
       isCollapsed: shape.isCollapsed,
+      elementKey: shape.archimateElementKey ?? '',
       availableParentGroups: parentGroups,
       availableLinkedViews,
     };
@@ -2131,6 +2280,11 @@ export class DiagramCanvasService {
     return icon?.text ?? '';
   }
 
+  /** Grouping and Location (both `Generic`) render as containers that hold other shapes. */
+  private isContainerShape(shape: ArchimateShape): boolean {
+    return GROUP_SHAPE_ICONS.includes(this.iconOf(shape)) || shape.archimateLayer === 'Generic';
+  }
+
   private hexToRgbStr(fill: string | fabric.Pattern | fabric.Gradient | null | undefined): string {
     if (!fill || typeof fill !== 'string') return '#ffffff';
     if (/^#[0-9a-f]{6}$/i.test(fill)) return fill;
@@ -2175,7 +2329,7 @@ export class DiagramCanvasService {
 
     const label = text.trim() || 'Unnamed';
     textbox.set('text', label);
-    this.syncGlobalElementName(shape.archimateId, label);
+    this.syncElementName(shape, label);
     this.canvas?.requestRenderAll();
     this.refreshTree();
     this.refreshProperties();
@@ -2209,12 +2363,16 @@ export class DiagramCanvasService {
     switch (property) {
       case 'name': {
         if (!shape.isShape) return;
+        const label = value || 'Unnamed';
+        if (this.store.elementFor(shape.archimateElementKey)) {
+          this.updateElement({ name: label });
+          return;
+        }
         const textbox = shape.getObjects().find((child) => child.type === 'textbox') as
           | fabric.Textbox
           | undefined;
-        const label = value || 'Unnamed';
         if (textbox) textbox.set('text', label);
-        this.syncGlobalElementName(shape.archimateId, label);
+        this.syncElementName(shape, label);
         canvas.requestRenderAll();
         this.refreshTree();
         this.commitHistory();
@@ -2250,12 +2408,96 @@ export class DiagramCanvasService {
         return;
       }
       case 'doc': {
-        if (connection.isConnection) connection.archimateDoc = value;
-        else if (shape.isShape) shape.archimateDoc = value;
+        if (connection.isConnection) {
+          connection.archimateDoc = value;
+          this.commitHistory();
+          return;
+        }
+        if (shape.isShape && this.store.elementFor(shape.archimateElementKey)) {
+          this.updateElement({ documentation: value });
+          return;
+        }
+        if (shape.isShape) shape.archimateDoc = value;
         this.commitHistory();
         return;
       }
     }
+  }
+
+  /**
+   * Applies a semantics edit to the element behind the selected shape. Because occurrences share
+   * one element, the name, type and documentation also change on every other view.
+   */
+  updateElement(change: Partial<Omit<ModelElement, 'key'>>): void {
+    const canvas = this.canvas;
+    const active = canvas?.getActiveObject() as ArchimateShape | undefined;
+    if (!canvas || !active?.isShape || this.readOnly) return;
+
+    const existing = this.store.elementFor(active.archimateElementKey);
+    if (!existing) return;
+
+    const element: ModelElement = { ...existing, ...change, key: existing.key };
+    this.store.upsertElement(element);
+    this.applyElementToOccurrences(element);
+    this.refreshTree();
+    this.refreshProperties();
+    canvas.requestRenderAll();
+    this.commitHistory();
+  }
+
+  /**
+   * Applies a semantics edit to a model element from outside the canvas, so a catalogue row can
+   * change what every occurrence of the element shows.
+   */
+  updateElementByKey(key: string, change: Partial<Omit<ModelElement, 'key'>>): void {
+    if (this.readOnly) return;
+    const existing = this.store.elementFor(key);
+    if (!existing) return;
+
+    const element: ModelElement = { ...existing, ...change, key: existing.key };
+    this.store.upsertElement(element);
+    this.applyElementToOccurrences(element);
+    this.refreshTree();
+    this.refreshProperties();
+    this.canvas?.requestRenderAll();
+    this.commitHistory();
+  }
+
+  private applyElementToOccurrences(element: ModelElement): void {
+    for (const shape of this.allShapes()) {
+      if (shape.archimateElementKey === element.key) this.applyElementToShape(shape, element);
+    }
+
+    // Other views are only kept as snapshots, so their occurrences are patched in place and
+    // pick the change up the next time the view is shown.
+    for (const [viewId, snapshot] of this.snapshots) {
+      if (viewId === this.activeViewId) continue;
+      for (const other of snapshot.shapes ?? []) {
+        if ((other.elementKey ?? other.id) !== element.key) continue;
+        other.label = element.name;
+        other.doc = element.documentation;
+      }
+    }
+  }
+
+  private applyElementToShape(shape: ArchimateShape, element: ModelElement): void {
+    const label = shape.getObjects().find((child) => child.type === 'textbox') as
+      | fabric.Textbox
+      | undefined;
+    if (label) label.set('text', element.name);
+
+    // The glyph is the only thing that tracks the type; the outline was built for the shape kind
+    // it was created as, so a box never turns into a container or the other way round.
+    const icon = shape.getObjects().find((child) => child.type === 'text') as
+      | fabric.Text
+      | undefined;
+    const nextIcon = iconForType(element.archimateType);
+    const wasContainer = GROUP_SHAPE_ICONS.includes(icon?.text ?? '');
+    const isContainer = nextIcon !== null && GROUP_SHAPE_ICONS.includes(nextIcon);
+    if (icon && nextIcon && wasContainer === isContainer) icon.set('text', nextIcon);
+
+    shape.archimateDoc = element.documentation;
+    shape.setCoords();
   }
 
   resetColor(): void {
@@ -2367,6 +2609,7 @@ export class DiagramCanvasService {
 
     canvas.remove(shape);
     this.updateAllConnections();
+    this.releaseElement(shape);
   }
 
   bringToFront(): void {
@@ -2613,7 +2856,7 @@ export class DiagramCanvasService {
           label: asText(snap.label),
           color: asText(snap.color) || '#ffffff',
           icon: asText(snap.icon),
-          layer: asText(snap.layer),
+          layer: layerOf(asText(snap.layer)),
           x: asNumber(snap.left, 0),
           y: asNumber(snap.top, 0),
           width: asNumber(snap.width, 0) || null,
@@ -2626,6 +2869,8 @@ export class DiagramCanvasService {
 
         shape.linkedView = snap.linkedView;
         shape.archimateDoc = snap.doc;
+        shape.archimateElementKey =
+          typeof snap.elementKey === 'string' && snap.elementKey ? snap.elementKey : id;
         shape.isCollapsed = snap.isCollapsed;
         shape.expandedHeight = snap.expandedHeight ?? undefined;
         this.applySnapshotRects(shape, snap);
@@ -2737,9 +2982,10 @@ export class DiagramCanvasService {
 
       return {
         id: shape.archimateId,
+        elementKey: shape.archimateElementKey ?? shape.archimateId,
         label: this.labelOf(shape),
         icon: this.iconOf(shape),
-        layer: shape.archimateLayer || 'Other',
+        layer: layerOf(shape.archimateLayer),
         color: shape.originalColor,
         doc: shape.archimateDoc ?? '',
         linkedView: shape.linkedView ?? '',
@@ -2794,6 +3040,8 @@ export class DiagramCanvasService {
     const objects = canvas.getObjects().filter((obj) => (obj as ArchimateShape).isShape);
     this.views.set(this.activeViewId, {
       name: existing?.name ?? 'View',
+      viewpoint: existing?.viewpoint ?? null,
+      contentType: existing?.contentType ?? 'diagram',
       objects: [...objects],
       connections: [...this.connections],
     });
@@ -2872,18 +3120,23 @@ export class DiagramCanvasService {
     this.views.clear();
     this.snapshots.clear();
     this.parsedViews.clear();
-    this.repository.clear();
     this.history.clear();
     this.connections = [];
     this.activeViewId = '';
 
     const ordered = [...diagram.views].sort((a, b) => a.position - b.position);
     for (const view of ordered) {
-      this.views.set(view.viewKey, { name: view.name, objects: [], connections: [] });
+      this.views.set(view.viewKey, {
+        name: view.name,
+        viewpoint: view.viewpoint ?? null,
+        contentType: view.contentType ?? 'diagram',
+        objects: [],
+        connections: [],
+      });
       this.snapshots.set(view.viewKey, this.normalizeSnapshot(view));
     }
     if (this.views.size === 0) {
-      this.views.set(DEFAULT_VIEW_ID, { name: 'Default View', objects: [], connections: [] });
+      this.views.set(DEFAULT_VIEW_ID, { name: 'Default View', viewpoint: null, contentType: 'diagram', objects: [], connections: [] });
       this.snapshots.set(DEFAULT_VIEW_ID, EMPTY_SNAPSHOT);
     }
 
@@ -2909,12 +3162,69 @@ export class DiagramCanvasService {
       this.serializePendingImports();
       this.saveCurrentViewState();
     }
+    this.syncCatalogue();
     return [...this.views.entries()].map(([viewKey, view], index) => ({
       viewKey,
       name: view.name,
       position: index,
+      viewpoint: view.viewpoint,
+      contentType: view.contentType,
+      plateau: null,
       snapshot: this.snapshots.get(viewKey) ?? EMPTY_SNAPSHOT,
     }));
+  }
+
+  /**
+   * Gives every drawn shape a model element so the catalogue never lags behind the canvas. Derived
+   * elements do not mark the document dirty: the shape that produced them already did.
+   */
+  private syncCatalogue(): void {
+    const known = this.store.elementByKey();
+    const derived: ModelElement[] = [];
+    /** Snapshot shapes reference elements by occurrence id, so translate before deriving relationships. */
+    const elementKeyById = new Map<string, string>();
+
+    for (const snapshot of this.snapshots.values()) {
+      for (const shape of snapshot.shapes ?? []) {
+        const key = compactKey('el', shape.elementKey || shape.id);
+        elementKeyById.set(shape.id, key);
+        if (known.has(key) || derived.some((element) => element.key === key)) continue;
+        const layer = layerOf(shape.layer);
+        derived.push({
+          ...emptyModelElement(
+            key,
+            shape.label || 'Untitled',
+            archimateTypeForIcon(shape.icon, layer),
+            layer,
+          ),
+          documentation: shape.doc ?? '',
+        });
+      }
+    }
+
+    this.store.registerElements(derived);
+
+    const relationships = new Map<string, ModelRelationship>();
+    for (const snapshot of this.snapshots.values()) {
+      for (const connection of snapshot.connections ?? []) {
+        const sourceKey = elementKeyById.get(connection.sourceId);
+        const targetKey = elementKeyById.get(connection.targetId);
+        if (!sourceKey || !targetKey || sourceKey === targetKey) continue;
+        const key = relationshipKey(sourceKey, targetKey, connection.type);
+        if (relationships.has(key)) continue;
+        relationships.set(key, {
+          key,
+          type: connection.type,
+          sourceKey,
+          targetKey,
+          name: null,
+          documentation: connection.doc ?? '',
+          properties: {},
+        });
+      }
+    }
+
+    this.store.reconcileRelationships([...relationships.values()]);
   }
 
   /**
@@ -2948,17 +3258,49 @@ export class DiagramCanvasService {
     return { ...snapshot, selection: snapshot.selection ?? null };
   }
 
-  createView(name: string): void {
+  createView(
+    name: string,
+    viewpoint: string | null = null,
+    contentType: ViewContentType = 'diagram',
+  ): void {
     const canvas = this.canvas;
     if (!canvas || this.readOnly) return;
 
     this.saveCurrentViewState();
     const id = `view_${Date.now()}`;
-    this.views.set(id, { name: name.trim() || 'New View', objects: [], connections: [] });
+    this.views.set(id, {
+      name: name.trim() || 'New View',
+      viewpoint,
+      contentType,
+      objects: [],
+      connections: [],
+    });
     this.snapshots.set(id, EMPTY_SNAPSHOT);
     this.store.newViewDialogOpen.set(false);
     this.activeViewId = '';
     this.selectView(id);
+    this.store.markDocumentChanged();
+  }
+
+  /** Scopes a view to a viewpoint. The palette, the validator and the assistant follow it. */
+  setViewpoint(viewId: string, viewpoint: string | null): void {
+    const view = this.views.get(viewId);
+    if (!view || this.readOnly) return;
+    if (view.viewpoint === viewpoint) return;
+
+    view.viewpoint = viewpoint;
+    this.refreshTree();
+    this.store.markDocumentChanged();
+  }
+
+  /** Switches a view between canvas, catalogue and matrix content. */
+  setContentType(viewId: string, contentType: ViewContentType): void {
+    const view = this.views.get(viewId);
+    if (!view || this.readOnly) return;
+    if (view.contentType === contentType) return;
+
+    view.contentType = contentType;
+    this.refreshTree();
     this.store.markDocumentChanged();
   }
 
@@ -2989,6 +3331,10 @@ export class DiagramCanvasService {
         width: parsedShape.width,
         height: parsedShape.height,
         forceId: parsedShape.elementId,
+        // The exchange file names the modelled element, so the same one shared by two views
+        // stays a single model element here as well.
+        elementKey: parsedShape.elementId,
+        archimateType: parsedShape.archimateType,
         parentId: parent?.archimateId ?? null,
         isImport: true,
       });
@@ -3023,19 +3369,24 @@ export class DiagramCanvasService {
     reader.onload = () => {
       try {
         const model = this.importer.parse(String(reader.result ?? ''));
-        this.repository.clear();
         this.parsedViews.clear();
         this.views.clear();
         this.snapshots.clear();
         this.history.clear();
 
         for (const view of model.views) {
-          this.views.set(view.id, { name: view.name, objects: [], connections: [] });
+          this.views.set(view.id, {
+            name: view.name,
+            viewpoint: null,
+            contentType: 'diagram',
+            objects: [],
+            connections: [],
+          });
           this.parsedViews.set(view.id, view);
         }
 
         if (model.views.length === 0) {
-          this.views.set(DEFAULT_VIEW_ID, { name: 'Default View', objects: [], connections: [] });
+          this.views.set(DEFAULT_VIEW_ID, { name: 'Default View', viewpoint: null, contentType: 'diagram', objects: [], connections: [] });
           this.snapshots.set(DEFAULT_VIEW_ID, EMPTY_SNAPSHOT);
           this.activeViewId = DEFAULT_VIEW_ID;
           this.store.showToast('Parsed successfully, but no visual views found.');
@@ -3070,6 +3421,81 @@ export class DiagramCanvasService {
     this.store.showToast('Export successful.');
   }
 
+  /** Writes the active view as a vector SVG, which keeps text crisp when it is embedded. */
+  exportSvg(): void {
+    const canvas = this.canvas;
+    if (!canvas) return;
+
+    const svg = canvas.toSVG();
+    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'architecture-diagram.svg';
+    link.click();
+    URL.revokeObjectURL(url);
+    this.store.showToast('Export successful.');
+  }
+
+  /** Writes every view, element and relationship as an Archi exchange file. */
+  exportArchimate(): void {
+    this.saveCurrentViewState();
+
+    const views: ExchangeView[] = [];
+    for (const [viewId, snapshot] of this.snapshots) {
+      const stored = this.views.get(viewId);
+      if (stored && stored.contentType !== 'diagram') continue;
+
+      const elementKeyByDiagId = new Map<string, string>();
+      for (const shape of snapshot.shapes) {
+        elementKeyByDiagId.set(shape.id, shape.elementKey ?? shape.id);
+      }
+
+      views.push({
+        id: viewId,
+        name: stored?.name ?? viewId,
+        viewpoint: stored?.viewpoint ?? null,
+        shapes: snapshot.shapes.map((shape) => ({
+          diagId: shape.id,
+          parentDiagId: shape.parentId,
+          elementKey: shape.elementKey ?? null,
+          name: shape.label,
+          archimateType: archimateTypeForIcon(shape.icon, shape.layer),
+          x: shape.left,
+          y: shape.top,
+          width: shape.width,
+          height: shape.height,
+        })),
+        connections: snapshot.connections.map((connection) => ({
+          sourceDiagId: connection.sourceId,
+          targetDiagId: connection.targetId,
+          relationshipKey: relationshipKey(
+            elementKeyByDiagId.get(connection.sourceId) ?? connection.sourceId,
+            elementKeyByDiagId.get(connection.targetId) ?? connection.targetId,
+            connection.type,
+          ),
+          type: connection.type,
+        })),
+      });
+    }
+
+    const xml = buildArchimateExchange({
+      name: 'EAsync Model',
+      elements: this.store.elements(),
+      relationships: this.store.modelRelationships(),
+      views,
+    });
+
+    const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'easync-model.archimate';
+    link.click();
+    URL.revokeObjectURL(url);
+    this.store.showToast('Export successful.');
+  }
+
   clearAll(): void {
     const canvas = this.canvas;
     if (!canvas || this.readOnly) return;
@@ -3077,11 +3503,10 @@ export class DiagramCanvasService {
     canvas.clear();
     this.connections = [];
     this.clearBendpoints();
-    this.repository.clear();
     this.parsedViews.clear();
     this.views.clear();
     this.snapshots.clear();
-    this.views.set(DEFAULT_VIEW_ID, { name: 'Default View', objects: [], connections: [] });
+    this.views.set(DEFAULT_VIEW_ID, { name: 'Default View', viewpoint: null, contentType: 'diagram', objects: [], connections: [] });
     this.snapshots.set(DEFAULT_VIEW_ID, EMPTY_SNAPSHOT);
     this.activeViewId = DEFAULT_VIEW_ID;
 

@@ -11,18 +11,61 @@ export type RelationshipType =
   | 'aggregation'
   | 'assignment';
 
+/** ArchiMate 3.2 layers, listed in the order they stack in an architecture. */
+export type ArchimateLayer =
+  | 'Strategy'
+  | 'Business'
+  | 'Application'
+  | 'Tech & Physical'
+  | 'Physical'
+  | 'Motivation'
+  | 'Implementation'
+  | 'Generic'
+  | 'Connector'
+  | 'Other';
+
+/** Canonical layer order, used for trees, repository groups and palette sections. */
+export const LAYER_ORDER: readonly ArchimateLayer[] = [
+  'Strategy',
+  'Business',
+  'Application',
+  'Tech & Physical',
+  'Physical',
+  'Motivation',
+  'Implementation',
+  'Generic',
+  'Connector',
+  'Other',
+];
+
+const LAYER_RANK = new Map<string, number>(LAYER_ORDER.map((layer, index) => [layer, index]));
+
+/** Coerces a persisted or imported layer to a known layer, defaulting to `Other`. */
+export function layerOf(value: string | null | undefined): ArchimateLayer {
+  if (!value) return 'Other';
+  const needle = value.trim().toLowerCase();
+  return LAYER_ORDER.find((layer) => layer.toLowerCase() === needle) ?? 'Other';
+}
+
+/** Layer sort comparator: canonical order first, unknown layers last and alphabetical. */
+export function compareLayers(a: string, b: string): number {
+  const rankA = LAYER_RANK.get(a) ?? LAYER_ORDER.length;
+  const rankB = LAYER_RANK.get(b) ?? LAYER_ORDER.length;
+  return rankA === rankB ? a.localeCompare(b) : rankA - rankB;
+}
+
 export interface PaletteItem {
   label: string;
   displayLabel: string;
   color: string;
   icon: string;
-  layer: string;
+  layer: ArchimateLayer;
   isDashed?: boolean;
 }
 
 export interface PaletteCategory {
   title: string;
-  layerName: string;
+  layerName: ArchimateLayer;
   dotColor: string;
   items: PaletteItem[];
 }
@@ -32,7 +75,9 @@ export interface GlobalElement {
   label: string;
   color: string;
   icon: string;
-  layer: string;
+  layer: ArchimateLayer;
+  /** Model element this entry stands for; several entries can share one. */
+  elementKey?: string;
 }
 
 export interface Point2D {
@@ -116,7 +161,7 @@ export interface ShapeSummary {
   archimateId: string;
   label: string;
   icon: string;
-  layer: string;
+  layer: ArchimateLayer;
   color: string;
   isActive: boolean;
   objectRef: FabricObjectLike;
@@ -166,20 +211,19 @@ export const RELATIONSHIP_OPTIONS: { value: RelationshipType; label: string }[] 
   { value: 'assignment', label: 'Assignment' },
 ];
 
+/**
+ * Every ArchiMate 3.2 element Archi 5.x offers in its palette, grouped the way
+ * Archi groups them. Composite elements keep the `Generic` layer because that
+ * layer is what draws an element as a container.
+ */
 export const PALETTE_CATEGORIES: PaletteCategory[] = [
   {
-    title: 'Generic',
+    title: 'Composite',
     layerName: 'Generic',
     dotColor: '#ffffff',
     items: [
-      {
-        label: 'Grouping',
-        displayLabel: 'Grouping',
-        color: '#ffffff',
-        icon: '⊞',
-        layer: 'Generic',
-        isDashed: true,
-      },
+      { label: 'Grouping', displayLabel: 'Grouping', color: '#ffffff', icon: '⊞', layer: 'Generic', isDashed: true },
+      { label: 'Location', displayLabel: 'Location', color: '#ffffff', icon: '⌖', layer: 'Generic', isDashed: true },
     ],
   },
   {
@@ -189,8 +233,14 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
     items: [
       { label: 'Stakeholder', displayLabel: 'Stakeholder', color: '#ccccff', icon: '웃', layer: 'Motivation' },
       { label: 'Driver', displayLabel: 'Driver', color: '#ccccff', icon: '⚑', layer: 'Motivation' },
+      { label: 'Assessment', displayLabel: 'Assessment', color: '#ccccff', icon: '⚖', layer: 'Motivation' },
       { label: 'Goal', displayLabel: 'Goal', color: '#ccccff', icon: '◎', layer: 'Motivation' },
+      { label: 'Outcome', displayLabel: 'Outcome', color: '#ccccff', icon: '◉', layer: 'Motivation' },
+      { label: 'Principle', displayLabel: 'Principle', color: '#ccccff', icon: '§', layer: 'Motivation' },
       { label: 'Requirement', displayLabel: 'Requirement', color: '#ccccff', icon: '▱', layer: 'Motivation' },
+      { label: 'Constraint', displayLabel: 'Constraint', color: '#ccccff', icon: '⬓', layer: 'Motivation' },
+      { label: 'Meaning', displayLabel: 'Meaning', color: '#ccccff', icon: '✧', layer: 'Motivation' },
+      { label: 'Value', displayLabel: 'Value', color: '#ccccff', icon: '◍', layer: 'Motivation' },
     ],
   },
   {
@@ -200,6 +250,7 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
     items: [
       { label: 'Resource', displayLabel: 'Resource', color: '#f5deaa', icon: '▤', layer: 'Strategy' },
       { label: 'Capability', displayLabel: 'Capability', color: '#f5deaa', icon: '◩', layer: 'Strategy' },
+      { label: 'Course of Action', displayLabel: 'Course of Action', color: '#f5deaa', icon: '⤞', layer: 'Strategy' },
       { label: 'Value Stream', displayLabel: 'Value Stream', color: '#f5deaa', icon: '❯', layer: 'Strategy' },
     ],
   },
@@ -210,10 +261,16 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
     items: [
       { label: 'Business Actor', displayLabel: 'Actor', color: '#ffffb5', icon: '웃', layer: 'Business' },
       { label: 'Business Role', displayLabel: 'Role', color: '#ffffb5', icon: '◪', layer: 'Business' },
+      { label: 'Business Collaboration', displayLabel: 'Collaboration', color: '#ffffb5', icon: '⬣', layer: 'Business' },
+      { label: 'Business Interface', displayLabel: 'Interface', color: '#ffffb5', icon: '⭘', layer: 'Business' },
       { label: 'Business Process', displayLabel: 'Process', color: '#ffffb5', icon: '⇨', layer: 'Business' },
       { label: 'Business Function', displayLabel: 'Function', color: '#ffffb5', icon: 'ᐱ', layer: 'Business' },
+      { label: 'Business Interaction', displayLabel: 'Interaction', color: '#ffffb5', icon: '⇄', layer: 'Business' },
       { label: 'Business Event', displayLabel: 'Event', color: '#ffffb5', icon: '◷', layer: 'Business' },
+      { label: 'Business Service', displayLabel: 'Service', color: '#ffffb5', icon: '⌓', layer: 'Business' },
       { label: 'Business Object', displayLabel: 'Object', color: '#ffffb5', icon: '■', layer: 'Business' },
+      { label: 'Contract', displayLabel: 'Contract', color: '#ffffb5', icon: '≣', layer: 'Business' },
+      { label: 'Representation', displayLabel: 'Representation', color: '#ffffb5', icon: '🖹', layer: 'Business' },
       { label: 'Product', displayLabel: 'Product', color: '#ffffb5', icon: '⬒', layer: 'Business' },
     ],
   },
@@ -223,9 +280,13 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
     dotColor: '#b5ffff',
     items: [
       { label: 'Application Component', displayLabel: 'Component', color: '#b5ffff', icon: '◫', layer: 'Application' },
-      { label: 'Application Service', displayLabel: 'Service', color: '#b5ffff', icon: '⌓', layer: 'Application' },
+      { label: 'Application Collaboration', displayLabel: 'Collaboration', color: '#b5ffff', icon: '⬣', layer: 'Application' },
       { label: 'Application Interface', displayLabel: 'Interface', color: '#b5ffff', icon: '⭘', layer: 'Application' },
       { label: 'Application Function', displayLabel: 'Function', color: '#b5ffff', icon: 'ᐱ', layer: 'Application' },
+      { label: 'Application Interaction', displayLabel: 'Interaction', color: '#b5ffff', icon: '⇄', layer: 'Application' },
+      { label: 'Application Process', displayLabel: 'Process', color: '#b5ffff', icon: '⇨', layer: 'Application' },
+      { label: 'Application Event', displayLabel: 'Event', color: '#b5ffff', icon: '◷', layer: 'Application' },
+      { label: 'Application Service', displayLabel: 'Service', color: '#b5ffff', icon: '⌓', layer: 'Application' },
       { label: 'Data Object', displayLabel: 'Data Object', color: '#b5ffff', icon: '⊟', layer: 'Application' },
     ],
   },
@@ -237,10 +298,20 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
       { label: 'Technology Node', displayLabel: 'Node', color: '#c9e7b7', icon: '⚀', layer: 'Tech & Physical' },
       { label: 'Technology Device', displayLabel: 'Device', color: '#c9e7b7', icon: '⬚', layer: 'Tech & Physical' },
       { label: 'System Software', displayLabel: 'Sys. Software', color: '#c9e7b7', icon: 'Ⓞ', layer: 'Tech & Physical' },
-      { label: 'Network', displayLabel: 'Network', color: '#c9e7b7', icon: '⛧', layer: 'Tech & Physical' },
+      { label: 'Technology Collaboration', displayLabel: 'Collaboration', color: '#c9e7b7', icon: '⬣', layer: 'Tech & Physical' },
+      { label: 'Technology Interface', displayLabel: 'Interface', color: '#c9e7b7', icon: '⭘', layer: 'Tech & Physical' },
+      { label: 'Path', displayLabel: 'Path', color: '#c9e7b7', icon: '⇝', layer: 'Tech & Physical' },
+      { label: 'Communication Network', displayLabel: 'Network', color: '#c9e7b7', icon: '⛧', layer: 'Tech & Physical' },
+      { label: 'Technology Function', displayLabel: 'Function', color: '#c9e7b7', icon: 'ᐱ', layer: 'Tech & Physical' },
+      { label: 'Technology Process', displayLabel: 'Process', color: '#c9e7b7', icon: '⇨', layer: 'Tech & Physical' },
+      { label: 'Technology Interaction', displayLabel: 'Interaction', color: '#c9e7b7', icon: '⇄', layer: 'Tech & Physical' },
+      { label: 'Technology Event', displayLabel: 'Event', color: '#c9e7b7', icon: '◷', layer: 'Tech & Physical' },
+      { label: 'Technology Service', displayLabel: 'Service', color: '#c9e7b7', icon: '⌓', layer: 'Tech & Physical' },
       { label: 'Artifact', displayLabel: 'Artifact', color: '#c9e7b7', icon: '☰', layer: 'Tech & Physical' },
-      { label: 'Facility', displayLabel: 'Facility', color: '#c9e7b7', icon: '⌂', layer: 'Tech & Physical' },
-      { label: 'Equipment', displayLabel: 'Equipment', color: '#c9e7b7', icon: '⚙', layer: 'Tech & Physical' },
+      { label: 'Equipment', displayLabel: 'Equipment', color: '#c9e7b7', icon: '⚙', layer: 'Physical' },
+      { label: 'Facility', displayLabel: 'Facility', color: '#c9e7b7', icon: '⌂', layer: 'Physical' },
+      { label: 'Distribution Network', displayLabel: 'Distr. Network', color: '#c9e7b7', icon: '▦', layer: 'Physical' },
+      { label: 'Material', displayLabel: 'Material', color: '#c9e7b7', icon: '▩', layer: 'Physical' },
     ],
   },
   {
@@ -250,25 +321,38 @@ export const PALETTE_CATEGORIES: PaletteCategory[] = [
     items: [
       { label: 'Work Package', displayLabel: 'Work Package', color: '#ffe0e0', icon: '◧', layer: 'Implementation' },
       { label: 'Deliverable', displayLabel: 'Deliverable', color: '#ffe0e0', icon: '◨', layer: 'Implementation' },
+      { label: 'Implementation Event', displayLabel: 'Event', color: '#ffe0e0', icon: '◷', layer: 'Implementation' },
       { label: 'Plateau', displayLabel: 'Plateau', color: '#ffe0e0', icon: '▤', layer: 'Implementation' },
       { label: 'Gap', displayLabel: 'Gap', color: '#ffe0e0', icon: '◫', layer: 'Implementation' },
     ],
   },
+  {
+    title: 'Connectors',
+    layerName: 'Connector',
+    dotColor: '#ffffff',
+    items: [
+      { label: 'Junction', displayLabel: 'Junction', color: '#ffffff', icon: '◆', layer: 'Connector', isDashed: true },
+    ],
+  },
 ];
 
-export function getArchimateTypeInfo(typeString: string): { color: string; icon: string; layer: string } {
-  const map: Record<string, { color: string; icon: string; layer: string }> = {
+export function getArchimateTypeInfo(typeString: string): {
+  color: string;
+  icon: string;
+  layer: ArchimateLayer;
+} {
+  const map: Record<string, { color: string; icon: string; layer: ArchimateLayer }> = {
     // Motivation
     Stakeholder: { color: '#ccccff', icon: '웃', layer: 'Motivation' },
     Driver: { color: '#ccccff', icon: '⚑', layer: 'Motivation' },
     Assessment: { color: '#ccccff', icon: '⚖', layer: 'Motivation' },
     Goal: { color: '#ccccff', icon: '◎', layer: 'Motivation' },
-    Outcome: { color: '#ccccff', icon: '◎', layer: 'Motivation' },
+    Outcome: { color: '#ccccff', icon: '◉', layer: 'Motivation' },
     Principle: { color: '#ccccff', icon: '§', layer: 'Motivation' },
     Requirement: { color: '#ccccff', icon: '▱', layer: 'Motivation' },
-    Constraint: { color: '#ccccff', icon: '⬒', layer: 'Motivation' },
+    Constraint: { color: '#ccccff', icon: '⬓', layer: 'Motivation' },
     Meaning: { color: '#ccccff', icon: '✧', layer: 'Motivation' },
-    Value: { color: '#ccccff', icon: 'Ⓞ', layer: 'Motivation' },
+    Value: { color: '#ccccff', icon: '◍', layer: 'Motivation' },
 
     // Strategy
     Resource: { color: '#f5deaa', icon: '▤', layer: 'Strategy' },
@@ -287,7 +371,7 @@ export function getArchimateTypeInfo(typeString: string): { color: string; icon:
     BusinessEvent: { color: '#ffffb5', icon: '◷', layer: 'Business' },
     BusinessService: { color: '#ffffb5', icon: '⌓', layer: 'Business' },
     BusinessObject: { color: '#ffffb5', icon: '■', layer: 'Business' },
-    Contract: { color: '#ffffb5', icon: '☰', layer: 'Business' },
+    Contract: { color: '#ffffb5', icon: '≣', layer: 'Business' },
     Representation: { color: '#ffffb5', icon: '🖹', layer: 'Business' },
     Product: { color: '#ffffb5', icon: '⬒', layer: 'Business' },
 
@@ -302,26 +386,28 @@ export function getArchimateTypeInfo(typeString: string): { color: string; icon:
     ApplicationService: { color: '#b5ffff', icon: '⌓', layer: 'Application' },
     DataObject: { color: '#b5ffff', icon: '⊟', layer: 'Application' },
 
-    // Technology
-    Node: { color: '#c9e7b7', icon: '⚀', layer: 'Technology' },
-    Device: { color: '#c9e7b7', icon: '⬚', layer: 'Technology' },
-    SystemSoftware: { color: '#c9e7b7', icon: 'Ⓞ', layer: 'Technology' },
-    TechnologyCollaboration: { color: '#c9e7b7', icon: '⬣', layer: 'Technology' },
-    TechnologyInterface: { color: '#c9e7b7', icon: '⭘', layer: 'Technology' },
-    Path: { color: '#c9e7b7', icon: '⤞', layer: 'Technology' },
-    CommunicationNetwork: { color: '#c9e7b7', icon: '⛧', layer: 'Technology' },
-    TechnologyFunction: { color: '#c9e7b7', icon: 'ᐱ', layer: 'Technology' },
-    TechnologyProcess: { color: '#c9e7b7', icon: '⇨', layer: 'Technology' },
-    TechnologyInteraction: { color: '#c9e7b7', icon: '⇄', layer: 'Technology' },
-    TechnologyEvent: { color: '#c9e7b7', icon: '◷', layer: 'Technology' },
-    TechnologyService: { color: '#c9e7b7', icon: '⌓', layer: 'Technology' },
-    Artifact: { color: '#c9e7b7', icon: '☰', layer: 'Technology' },
+    // Technology & physical
+    Node: { color: '#c9e7b7', icon: '⚀', layer: 'Tech & Physical' },
+    TechnologyNode: { color: '#c9e7b7', icon: '⚀', layer: 'Tech & Physical' },
+    Device: { color: '#c9e7b7', icon: '⬚', layer: 'Tech & Physical' },
+    TechnologyDevice: { color: '#c9e7b7', icon: '⬚', layer: 'Tech & Physical' },
+    SystemSoftware: { color: '#c9e7b7', icon: 'Ⓞ', layer: 'Tech & Physical' },
+    TechnologyCollaboration: { color: '#c9e7b7', icon: '⬣', layer: 'Tech & Physical' },
+    TechnologyInterface: { color: '#c9e7b7', icon: '⭘', layer: 'Tech & Physical' },
+    Path: { color: '#c9e7b7', icon: '⇝', layer: 'Tech & Physical' },
+    CommunicationNetwork: { color: '#c9e7b7', icon: '⛧', layer: 'Tech & Physical' },
+    TechnologyFunction: { color: '#c9e7b7', icon: 'ᐱ', layer: 'Tech & Physical' },
+    TechnologyProcess: { color: '#c9e7b7', icon: '⇨', layer: 'Tech & Physical' },
+    TechnologyInteraction: { color: '#c9e7b7', icon: '⇄', layer: 'Tech & Physical' },
+    TechnologyEvent: { color: '#c9e7b7', icon: '◷', layer: 'Tech & Physical' },
+    TechnologyService: { color: '#c9e7b7', icon: '⌓', layer: 'Tech & Physical' },
+    Artifact: { color: '#c9e7b7', icon: '☰', layer: 'Tech & Physical' },
 
     // Physical
     Equipment: { color: '#c9e7b7', icon: '⚙', layer: 'Physical' },
     Facility: { color: '#c9e7b7', icon: '⌂', layer: 'Physical' },
-    DistributionNetwork: { color: '#c9e7b7', icon: '⛧', layer: 'Physical' },
-    Material: { color: '#c9e7b7', icon: '▤', layer: 'Physical' },
+    DistributionNetwork: { color: '#c9e7b7', icon: '▦', layer: 'Physical' },
+    Material: { color: '#c9e7b7', icon: '▩', layer: 'Physical' },
 
     // Implementation & Migration
     WorkPackage: { color: '#ffe0e0', icon: '◧', layer: 'Implementation' },
@@ -330,8 +416,14 @@ export function getArchimateTypeInfo(typeString: string): { color: string; icon:
     Plateau: { color: '#ffe0e0', icon: '▤', layer: 'Implementation' },
     Gap: { color: '#ffe0e0', icon: '◫', layer: 'Implementation' },
 
-    // Grouping
+    // Composite & connectors
     Grouping: { color: '#ffffff', icon: '⊞', layer: 'Generic' },
+    // Archi's exchange format calls a Grouping `Group`.
+    Group: { color: '#ffffff', icon: '⊞', layer: 'Generic' },
+    Location: { color: '#ffffff', icon: '⌖', layer: 'Generic' },
+    Junction: { color: '#ffffff', icon: '◆', layer: 'Connector' },
+    AndJunction: { color: '#ffffff', icon: '◆', layer: 'Connector' },
+    OrJunction: { color: '#ffffff', icon: '◆', layer: 'Connector' },
   };
   return map[typeString] || { color: '#e2e8f0', icon: '⬚', layer: 'Other' };
 }

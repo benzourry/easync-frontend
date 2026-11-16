@@ -41,6 +41,7 @@
           },
           "configurations": {
             "production": {
+              "baseHref": "/easync/",
               "budgets": [
                 {
                   "type": "initial",

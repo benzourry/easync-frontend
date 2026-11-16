@@ -51,8 +51,16 @@
         (click)="store.closeSidebars()"
       ></div>
 
-      <app-palette-sidebar />
-      <app-canvas-stage />
+      @if (store.activeContentType() === 'diagram') {
+        <app-palette-sidebar />
+      }
+      <!-- The canvas stays mounted so switching content types never disposes and rebuilds it. -->
+      <app-canvas-stage [class.d-none]="store.activeContentType() !== 'diagram'" />
+      @if (store.activeContentType() === 'catalogue') {
+        <app-catalogue-view class="flex-grow-1 overflow-hidden app-content-slot" />
+      } @else if (store.activeContentType() === 'matrix') {
+        <app-matrix-view class="flex-grow-1 overflow-hidden app-content-slot" />
+      }
       <app-explorer-sidebar />
     </div>
   </div>

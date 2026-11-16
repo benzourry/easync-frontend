@@ -1,11 +1,14 @@
 import type { fabric } from 'fabric';
-import type { GlobalElement, RelationshipType } from './archimate.models';
+import type { ArchimateLayer, GlobalElement, RelationshipType } from './archimate.models';
+import type { ViewContentType } from './diagram.models';
 
 /** Extra metadata attached to every ArchiMate shape group drawn on the canvas. */
 export interface ShapeMetadata {
   isShape: true;
   archimateId: string;
-  archimateLayer: string;
+  /** Key of the model element this shape shows; defaults to the shape id until it is bound. */
+  archimateElementKey?: string;
+  archimateLayer: ArchimateLayer;
   originalColor: string;
   archimateDoc: string;
   isCollapsed: boolean;
@@ -51,6 +54,8 @@ export interface DiagramConnection {
 /** Currently rendered view, kept in memory so switching views is lossless. */
 export interface StoredView {
   name: string;
+  viewpoint: string | null;
+  contentType: ViewContentType;
   objects: fabric.Object[];
   connections: DiagramConnection[];
 }

@@ -434,6 +434,10 @@ app-explorer-sidebar {
   flex-shrink: 0;
 }
 
+.btn.app-icon-btn::after {
+  display: none;
+}
+
 /* --- Panels ------------------------------------------------------------- */
 
 /* One padding value for every sidebar pane so the three panels line up. */

@@ -1,5 +1,5 @@
 import type { RelationshipType } from './archimate.models';
-import type { TogafDomainId, TogafPhaseId } from './togaf.models';
+import type { TogafDomainId, TogafPhaseId } from '../frameworks/togaf';
 
 /** A single canvas mutation proposed by the assistant. */
 export type AiOp =

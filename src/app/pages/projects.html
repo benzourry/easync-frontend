@@ -52,6 +52,8 @@
                 </p>
 
                 <dl class="row row-cols-2 g-0 small text-secondary mb-0">
+                  <dt class="col fw-normal">Framework</dt>
+                  <dd class="col-auto mb-0 text-end">{{ frameworkName(project.framework) }}</dd>
                   <dt class="col fw-normal">Diagrams</dt>
                   <dd class="col-auto mb-0 text-end">{{ project.diagramCount }}</dd>
                   <dt class="col fw-normal">Members</dt>
@@ -65,7 +67,7 @@
                 <a class="btn btn-sm btn-primary" [routerLink]="['/projects', project.id]">Open</a>
                 @if (canEdit(project)) {
                   <button type="button" class="btn btn-sm btn-outline-secondary" (click)="openEdit(project)">
-                    Rename
+                    Edit
                   </button>
                 }
                 @if (project.role === 'OWNER') {
@@ -105,6 +107,20 @@
         (input)="onCreateName($event)"
       />
     </div>
+    <div class="mb-3">
+      <label class="form-label" for="project-framework">Framework</label>
+      <select
+        id="project-framework"
+        class="form-select"
+        [value]="createFramework()"
+        (change)="onCreateFramework($event)"
+      >
+        @for (id of frameworkIds; track id) {
+          <option [value]="id">{{ frameworkName(id) }}</option>
+        }
+      </select>
+      <div class="form-text">Decides which phases, principles and artefacts guide the assistant.</div>
+    </div>
     <div class="mb-0">
       <label class="form-label" for="project-description">Description</label>
       <textarea
@@ -126,7 +142,7 @@
 
 <ng-template #editTpl let-modal>
   <div class="modal-header">
-    <h2 class="modal-title h5" id="edit-project-title">Rename project</h2>
+    <h2 class="modal-title h5" id="edit-project-title">Edit project</h2>
     <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
   </div>
   <div class="modal-body">
@@ -142,6 +158,19 @@
         [value]="editName()"
         (input)="onEditName($event)"
       />
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="edit-project-framework">Framework</label>
+      <select
+        id="edit-project-framework"
+        class="form-select"
+        [value]="editFramework()"
+        (change)="onEditFramework($event)"
+      >
+        @for (id of frameworkIds; track id) {
+          <option [value]="id">{{ frameworkName(id) }}</option>
+        }
+      </select>
     </div>
     <div class="mb-0">
       <label class="form-label" for="edit-project-description">Description</label>

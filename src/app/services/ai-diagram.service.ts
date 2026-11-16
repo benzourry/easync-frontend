@@ -3,9 +3,10 @@ import { Service, computed, inject, signal } from '@angular/core';
 import { firstValueFrom, timeout } from 'rxjs';
 import { apiErrorMessage } from '../core/http-error';
 import { DEFAULT_AI_CONTEXT } from '../models/ai.models';
+import { layerOf } from '../models/archimate.models';
 import type { AiContext, AiOp, AiPlan, AiSettings, AiSettingsPatch } from '../models/ai.models';
 import type { DiagramShapeInfo } from '../models/diagram.models';
-import { findTogafDomain, findTogafPhase } from '../models/togaf.models';
+import { findTogafDomain, findTogafPhase } from '../frameworks/togaf';
 import { describePlan, elementStyleFor, parsePlan } from '../utils/ai-plan';
 import { AiApiService } from './ai-api.service';
 import { DiagramCanvasService } from './diagram-canvas.service';
@@ -153,7 +154,7 @@ export class AiDiagramService {
       const reply = await firstValueFrom(
         this.api
           .createPlan(diagramId, {
-            prompt: request,
+            prompt: this.scopeToViewpoint(request),
             phase: findTogafPhase(context.phase).id,
             domain: findTogafDomain(context.domain).id,
             diagram: this.describeDiagram(),
@@ -217,7 +218,7 @@ export class AiDiagramService {
             label: op.label,
             color: style.color,
             icon: style.icon,
-            layer: op.layer ?? style.layer,
+            layer: op.layer ? layerOf(op.layer) : style.layer,
             x: position.x,
             y: position.y,
             width: op.width ?? null,
@@ -339,9 +340,36 @@ export class AiDiagramService {
   private withRationale(plan: AiPlan): AiPlan {
     const phase = findTogafPhase(this.contextSignal().phase);
     const fallback = `${phase.code} - ${phase.name}`;
+    const viewpoint = this.store.activeViewpoint()?.name ?? '';
     const rationale = plan.rationale;
-    if (!rationale) return { ...plan, rationale: { phase: fallback, viewpoint: '', principles: [] } };
-    return { ...plan, rationale: { ...rationale, phase: rationale.phase || fallback } };
+    if (!rationale) return { ...plan, rationale: { phase: fallback, viewpoint, principles: [] } };
+    return {
+      ...plan,
+      rationale: {
+        ...rationale,
+        phase: rationale.phase || fallback,
+        viewpoint: rationale.viewpoint || viewpoint,
+      },
+    };
+  }
+
+  /**
+   * Tells the model which viewpoint the view answers so it restricts itself to the elements
+   * and relationships that viewpoint admits. No viewpoint means the prompt goes through as-is.
+   */
+  private scopeToViewpoint(prompt: string): string {
+    const viewpoint = this.store.activeViewpoint();
+    if (!viewpoint) return prompt;
+    const lines = [
+      `Viewpoint: ${viewpoint.name} (${viewpoint.framework}).`,
+      `Concern: ${viewpoint.concern}.`,
+      `Stakeholders: ${viewpoint.stakeholders.join(', ')}.`,
+    ];
+    if (viewpoint.elements.length) lines.push(`Elements to use: ${viewpoint.elements.join(', ')}.`);
+    if (viewpoint.layers?.length) lines.push(`Layers to use: ${viewpoint.layers.join(', ')}.`);
+    lines.push(`Relationships to use: ${viewpoint.relationships.join(', ')}.`);
+    lines.push(`Guidance: ${viewpoint.guidance}`);
+    return `${prompt}\n\nStay inside this viewpoint:\n${lines.join('\n')}`;
   }
 
   private autoLayoutOrigin(shapes: DiagramShapeInfo[]): { x: number; y: number } {

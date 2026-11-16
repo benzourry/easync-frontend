@@ -36,6 +36,52 @@ ng build
 
 This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
 
+## Deployment
+
+The production frontend is served from `https://ia.unimas.my/easync/`, so the production
+configuration in `angular.json` sets `baseHref: "/easync/"`. That makes every asset reference
+(`fabric.min.js`, `icons.svg`, `easync-logo.png`, `favicon.ico`, lazy chunks) and every router
+link resolve under the `/easync/` prefix.
+
+```bash
+npm run build          # defaultConfiguration is production
+```
+
+Upload the contents of `dist/easync/browser/` to the web root of `https://ia.unimas.my/easync/`
+(do not upload the `dist/easync/browser` directory itself, only its files).
+
+The web server must serve `index.html` for unknown paths under `/easync/`, otherwise deep links
+such as `/easync/diagrams/6` return 404 on refresh. For Apache:
+
+```apache
+Alias /easync /var/www/easync
+<Directory /var/www/easync>
+    FallbackResource /easync/index.html
+</Directory>
+```
+
+For Nginx:
+
+```nginx
+location /easync/ {
+    alias /var/www/easync/;
+    try_files $uri $uri/ /easync/index.html;
+}
+```
+
+The SPA talks to the API at `https://rekapi.unimas.my/easync` (see `src/app/core/api.config.ts`).
+A different backend can be selected without rebuilding by defining the config before the bundle
+loads in `index.html`:
+
+```html
+<script>
+  window.__EASYNC_CONFIG__ = { apiBaseUrl: 'https://rekapi.unimas.my/easync' };
+</script>
+```
+
+The backend must list `https://ia.unimas.my` in its CORS `allowed-origins` and use
+`https://ia.unimas.my/easync` as `frontend-url` so the OAuth handoff redirects back into the SPA.
+
 ## Running unit tests
 
 To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:

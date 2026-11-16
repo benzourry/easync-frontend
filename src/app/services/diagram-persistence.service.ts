@@ -3,6 +3,12 @@ import { DestroyRef, Service, computed, effect, inject, signal } from '@angular/
 import { map, switchMap } from 'rxjs';
 import { apiErrorMessage, isStaleVersion } from '../core/http-error';
 import type { ApiErrorBody, DiagramDto, ProjectSummary } from '../models/api.models';
+import {
+  catalogueFromDto,
+  deriveCatalogueFromViews,
+  elementToDto,
+  relationshipToDto,
+} from '../models/model.models';
 import { DiagramApiService } from './diagram-api.service';
 import { DiagramCanvasService } from './diagram-canvas.service';
 import { DiagramStore } from './diagram-store';
@@ -114,6 +120,12 @@ export class DiagramPersistenceService {
     this.saveFailed.set(false);
     this.conflictVersion.set(null);
     this.cancelTimer();
+    const stored = catalogueFromDto(diagram.elements, diagram.relationships);
+    // Diagrams saved before the model existed carry only canvas snapshots, so the catalogue is
+    // rebuilt from them rather than left empty.
+    this.store.setCatalogue(
+      stored.elements.length > 0 ? stored : deriveCatalogueFromViews(diagram.views),
+    );
     this.canvas.loadDiagram(diagram);
     // Loading may normalize snapshots, so treat everything on screen as saved.
     this.savedRevision.set(this.store.documentRevision());
@@ -148,6 +160,8 @@ export class DiagramPersistenceService {
       .save(diagramId, {
         version,
         views,
+        elements: this.store.elements().map(elementToDto),
+        relationships: this.store.modelRelationships().map(relationshipToDto),
         ...(revisionLabel?.trim() ? { revisionLabel: revisionLabel.trim() } : {}),
       })
       .subscribe({
@@ -239,6 +253,7 @@ export class DiagramPersistenceService {
     this.activeId = null;
     this.diagram.set(null);
     this.project.set(null);
+    this.store.resetCatalogue();
     this.error.set(null);
     this.loading.set(false);
     this.saving.set(false);

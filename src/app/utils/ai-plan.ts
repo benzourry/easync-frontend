@@ -1,19 +1,20 @@
-import { PALETTE_CATEGORIES, RELATIONSHIP_OPTIONS } from '../models/archimate.models';
-import type { RelationshipType } from '../models/archimate.models';
+import { PALETTE_CATEGORIES, RELATIONSHIP_OPTIONS, layerOf } from '../models/archimate.models';
+import type { ArchimateLayer, RelationshipType } from '../models/archimate.models';
 import type { AiOp, AiPlan, AiRationale } from '../models/ai.models';
 
 /** Styling of a palette element type, used to colour the shapes the assistant asks for. */
 export interface ElementStyle {
   color: string;
   icon: string;
-  layer: string;
+  layer: ArchimateLayer;
 }
 
 const FALLBACK_STYLE: ElementStyle = { color: '#ffffff', icon: '▭', layer: 'Generic' };
 
 const ELEMENT_STYLES = PALETTE_CATEGORIES.flatMap((category) =>
   category.items.map((item) => ({
-    keys: [normalizeKey(item.label), normalizeKey(item.displayLabel)],
+    key: normalizeKey(item.label),
+    shortKey: normalizeKey(item.displayLabel),
     layer: normalizeKey(item.layer),
     style: { color: item.color, icon: item.icon, layer: item.layer } as ElementStyle,
   })),
@@ -31,8 +32,7 @@ const ELEMENT_ALIASES: Record<string, string> = {
   businesscapabilities: 'capability',
   capabilitymap: 'capability',
   valuechain: 'valuestream',
-  businessservice: 'businessprocess',
-  businessservices: 'businessprocess',
+  businessservices: 'businessservice',
   processstep: 'businessprocess',
   organization: 'businessactor',
   organizationunit: 'businessactor',
@@ -78,9 +78,7 @@ const ELEMENT_ALIASES: Record<string, string> = {
   initiative: 'workpackage',
   transitionarchitecture: 'plateau',
   transitionstate: 'plateau',
-  architectureprinciple: 'requirement',
-  principle: 'requirement',
-  constraint: 'requirement',
+  architectureprinciple: 'principle',
   businessrule: 'requirement',
   stakeholderconcern: 'stakeholder',
   asset: 'resource',
@@ -145,12 +143,13 @@ export function elementStyleFor(elementType?: string | null, layer?: string | nu
   const typeKey = normalizeKey(elementType ?? '');
   const layerKey = normalizeKey(layer ?? '');
   const aliasKey = ELEMENT_ALIASES[typeKey];
-  const candidates = typeKey
-    ? ELEMENT_STYLES.filter(
-        (entry) =>
-          entry.keys.includes(typeKey) || (!!aliasKey && entry.keys.includes(aliasKey)),
-      )
-    : [];
+  // A full ArchiMate element name always beats a TOGAF alias, so "Business Service"
+  // resolves to the service rather than the process it used to be mapped onto. The
+  // short palette labels stay last because they repeat across layers ("Interface").
+  const exact = typeKey ? ELEMENT_STYLES.filter((entry) => entry.key === typeKey) : [];
+  const aliased = aliasKey ? ELEMENT_STYLES.filter((entry) => entry.key === aliasKey) : [];
+  const short = typeKey ? ELEMENT_STYLES.filter((entry) => entry.shortKey === typeKey) : [];
+  const candidates = exact.length > 0 ? exact : aliased.length > 0 ? aliased : short;
   const match =
     candidates.find((entry) => layerKey && entry.layer === layerKey) ?? candidates[0] ?? null;
   if (match) return match.style;
@@ -160,7 +159,7 @@ export function elementStyleFor(elementType?: string | null, layer?: string | nu
     : undefined;
   if (layerStyle) return { ...layerStyle, icon: FALLBACK_STYLE.icon };
 
-  return layer ? { ...FALLBACK_STYLE, layer } : FALLBACK_STYLE;
+  return layer ? { ...FALLBACK_STYLE, layer: layerOf(layer) } : FALLBACK_STYLE;
 }
 
 /** Falls back to an association so a slightly off type name never loses a relationship. */

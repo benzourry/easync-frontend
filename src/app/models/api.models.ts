@@ -1,4 +1,7 @@
-import type { ViewSnapshot } from './diagram.models';
+import type { ViewContentType, ViewSnapshot } from './diagram.models';
+import type { ArchimateLayer, RelationshipType } from './archimate.models';
+import type { FrameworkId } from './framework.models';
+import type { Plateau } from './model.models';
 
 /** Shapes of the payloads exchanged with the EAsync Spring Boot backend. */
 
@@ -32,6 +35,8 @@ export interface ProjectSummary {
   id: number;
   name: string;
   description: string | null;
+  /** Framework profile id, e.g. `togaf`. */
+  framework: FrameworkId;
   role: ProjectRole;
   ownerName: string | null;
   diagramCount: number;
@@ -53,11 +58,13 @@ export interface MemberDto {
 export interface CreateProjectRequest {
   name: string;
   description?: string | null;
+  framework?: FrameworkId;
 }
 
 export interface UpdateProjectRequest {
   name: string;
   description?: string | null;
+  framework?: FrameworkId;
 }
 
 export interface AddMemberRequest {
@@ -79,6 +86,12 @@ export interface DiagramViewDto {
   viewKey: string;
   name: string;
   position: number;
+  /** Viewpoint id from the catalogue; absent on views created before viewpoints existed. */
+  viewpoint?: string | null;
+  /** `diagram` (default), `catalogue` or `matrix`. */
+  contentType?: ViewContentType | null;
+  /** `baseline`, `target` or `transition`, when the view documents a plateau. */
+  plateau?: Plateau | null;
   snapshot: ViewSnapshot;
 }
 
@@ -90,11 +103,45 @@ export interface DiagramDto {
   lastModifiedBy: string | null;
   updatedAt: string;
   views: DiagramViewDto[];
+  /** Present once the diagram has been saved with a model; older diagrams omit it. */
+  elements?: ModelElementDto[] | null;
+  relationships?: ModelRelationshipDto[] | null;
+}
+
+/** One element of a diagram's model, as stored by the server. */
+export interface ModelElementDto {
+  elementKey: string;
+  name: string;
+  archimateType: string;
+  layer: ArchimateLayer;
+  domain?: string | null;
+  plateau?: string | null;
+  lifecycleState?: string | null;
+  referenceModel?: string | null;
+  refCode?: string | null;
+  classification?: string | null;
+  owner?: string | null;
+  documentation?: string | null;
+  properties?: Record<string, string> | null;
+}
+
+/** A relationship between two model elements, addressed by element key. */
+export interface ModelRelationshipDto {
+  relationshipKey: string;
+  type: RelationshipType;
+  sourceKey: string;
+  targetKey: string;
+  name?: string | null;
+  documentation?: string | null;
+  properties?: Record<string, string> | null;
 }
 
 export interface SaveDiagramRequest {
   version: number;
   views: DiagramViewDto[];
+  /** Omitted by clients that only edit the canvas; the server then leaves the model alone. */
+  elements?: ModelElementDto[];
+  relationships?: ModelRelationshipDto[];
   revisionLabel?: string;
 }
 
@@ -113,6 +160,8 @@ export interface RevisionDto extends RevisionSummary {
   document: {
     version: number;
     views: DiagramViewDto[];
+    elements?: ModelElementDto[] | null;
+    relationships?: ModelRelationshipDto[] | null;
   };
 }
 

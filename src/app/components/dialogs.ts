@@ -1,6 +1,8 @@
-import { Component, TemplateRef, effect, inject, untracked, viewChild } from '@angular/core';
+import { Component, TemplateRef, computed, effect, inject, untracked, viewChild } from '@angular/core';
 import { NgbModal, NgbModalModule, type NgbModalRef } from '@ng-bootstrap/ng-bootstrap/modal';
+import { viewpointsForFramework } from '../frameworks/viewpoints';
 import { DiagramCanvasService } from '../services/diagram-canvas.service';
+import { DiagramPersistenceService } from '../services/diagram-persistence.service';
 import { DiagramStore } from '../services/diagram-store';
 
 const DIALOG_OPTIONS = { size: 'sm', centered: true, backdrop: 'static' as const };
@@ -173,12 +175,36 @@ export class ClearDialog {
           type="text"
           class="form-control"
           placeholder="e.g. Application Layer"
-          (keydown.enter)="confirm(modal, viewInput.value)"
+          (keydown.enter)="confirm(modal, viewInput.value, viewpointInput.value, contentInput.value)"
         />
+        <label for="new-view-viewpoint" class="form-label mt-3">Viewpoint</label>
+        <select #viewpointInput id="new-view-viewpoint" class="form-select">
+          <option value="">No viewpoint</option>
+          @for (viewpoint of viewpoints(); track viewpoint.id) {
+            <option [value]="viewpoint.id">{{ viewpoint.name }}</option>
+          }
+        </select>
+        <label for="new-view-content" class="form-label mt-3">Content</label>
+        <select #contentInput id="new-view-content" class="form-select">
+          <option value="diagram">Diagram</option>
+          <option value="catalogue">Catalogue</option>
+          <option value="matrix">Matrix</option>
+        </select>
+        <p class="form-text mb-0">
+          A viewpoint narrows the palette, the problems list and the assistant to what the view is
+          for. A catalogue view lists the allowed elements as a sortable table instead of drawing
+          them. Both can be changed later.
+        </p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" (click)="cancel(modal)">Cancel</button>
-        <button type="button" class="btn btn-primary" (click)="confirm(modal, viewInput.value)">Create</button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="confirm(modal, viewInput.value, viewpointInput.value, contentInput.value)"
+        >
+          Create
+        </button>
       </div>
     </ng-template>
   `,
@@ -186,8 +212,13 @@ export class ClearDialog {
 export class NewViewDialog {
   protected readonly store = inject(DiagramStore);
   private readonly diagram = inject(DiagramCanvasService);
+  private readonly persistence = inject(DiagramPersistenceService);
   private readonly modalService = inject(NgbModal);
   private readonly tpl = viewChild.required<TemplateRef<unknown>>('tpl');
+
+  protected readonly viewpoints = computed(() =>
+    viewpointsForFramework(this.persistence.project()?.framework),
+  );
 
   private ref: NgbModalRef | null = null;
 
@@ -227,10 +258,19 @@ export class NewViewDialog {
     modal.dismiss();
   }
 
-  protected confirm(modal: NgbModalRef, name: string): void {
+  protected confirm(
+    modal: NgbModalRef,
+    name: string,
+    viewpoint: string | null,
+    contentType: string,
+  ): void {
     this.ref = null;
     this.store.newViewDialogOpen.set(false);
-    this.diagram.createView(name.trim() || 'New View');
+    this.diagram.createView(
+      name.trim() || 'New View',
+      viewpoint || null,
+      contentType === 'catalogue' || contentType === 'matrix' ? contentType : 'diagram',
+    );
     modal.close();
   }
 }

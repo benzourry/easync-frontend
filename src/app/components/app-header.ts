@@ -6,6 +6,7 @@ import { AuthService } from '../services/auth.service';
 import { DiagramCanvasService } from '../services/diagram-canvas.service';
 import { DiagramPersistenceService } from '../services/diagram-persistence.service';
 import { DiagramStore } from '../services/diagram-store';
+import { TranslationService } from '../services/translation.service';
 
 @Component({
   selector: 'app-header',
@@ -17,8 +18,8 @@ import { DiagramStore } from '../services/diagram-store';
           <a
             class="btn btn-sm btn-light app-icon-btn"
             [routerLink]="['/projects', projectId]"
-            aria-label="Back to project"
-            ngbTooltip="Back to project"
+            [attr.aria-label]="i18n.t('header.backToProject')"
+            [ngbTooltip]="i18n.t('header.backToProject')"
           >
             <svg class="app-icon" aria-hidden="true"><use href="icons.svg#back"></use></svg>
           </a>
@@ -27,7 +28,7 @@ import { DiagramStore } from '../services/diagram-store';
         <button
           type="button"
           class="btn btn-sm btn-light d-lg-none app-icon-btn"
-          aria-label="Toggle elements palette"
+          [attr.aria-label]="i18n.t('header.togglePalette')"
           (click)="store.togglePalette()"
         >
           <svg class="app-icon" aria-hidden="true"><use href="icons.svg#list"></use></svg>
@@ -46,7 +47,7 @@ import { DiagramStore } from '../services/diagram-store';
           </span>
           <span class="small text-secondary d-flex align-items-center gap-1" aria-live="polite">
             @if (store.readOnly()) {
-              <span class="badge text-bg-secondary">Read only</span>
+              <span class="badge text-bg-secondary">{{ i18n.t('header.readOnly') }}</span>
             } @else {
               {{ saveLabel() }}
             }
@@ -54,7 +55,32 @@ import { DiagramStore } from '../services/diagram-store';
         </div>
       </div>
 
-      <div class="app-header-actions d-flex align-items-center gap-2">
+      <div class="app-header-actions d-flex align-items-center gap-2 ms-auto">
+        <div
+          class="btn-group btn-group-sm"
+          role="group"
+          [attr.aria-label]="i18n.t('language.label')"
+        >
+          <button
+            type="button"
+            class="btn btn-light"
+            [class.active]="i18n.language() === 'en'"
+            [attr.aria-pressed]="i18n.language() === 'en'"
+            (click)="i18n.setLanguage('en')"
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            class="btn btn-light"
+            [class.active]="i18n.language() === 'bm'"
+            [attr.aria-pressed]="i18n.language() === 'bm'"
+            (click)="i18n.setLanguage('bm')"
+          >
+            BM
+          </button>
+        </div>
+
         <button
           type="button"
           class="btn btn-sm btn-light app-icon-btn"
@@ -70,7 +96,7 @@ import { DiagramStore } from '../services/diagram-store';
         <button
           type="button"
           class="btn btn-sm btn-light d-lg-none app-icon-btn"
-          aria-label="Toggle explorer panel"
+          [attr.aria-label]="i18n.t('header.toggleExplorer')"
           (click)="store.toggleExplorer()"
         >
           <svg class="app-icon" aria-hidden="true">
@@ -78,45 +104,45 @@ import { DiagramStore } from '../services/diagram-store';
           </svg>
         </button>
 
-        <div class="vr d-none d-md-block"></div>
-
-        <div class="btn-group btn-group-sm" role="group" aria-label="History">
-          <button
-            type="button"
-            class="btn btn-light app-icon-btn"
-            aria-label="Undo"
-            ngbTooltip="Undo (Ctrl+Z)"
-            [disabled]="store.readOnly() || !store.canUndo()"
-            (click)="diagram.undo()"
-          >
-            <svg class="app-icon" aria-hidden="true">
-              <use href="icons.svg#arrow-counterclockwise"></use>
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="btn btn-light app-icon-btn"
-            aria-label="Redo"
-            ngbTooltip="Redo (Ctrl+Shift+Z)"
-            [disabled]="store.readOnly() || !store.canRedo()"
-            (click)="diagram.redo()"
-          >
-            <svg class="app-icon" aria-hidden="true"><use href="icons.svg#arrow-clockwise"></use></svg>
-          </button>
-        </div>
 
         @if (!store.readOnly()) {
+          <div class="vr d-none d-md-block"></div>
+
+          <div class="btn-group btn-group-sm" role="group" [attr.aria-label]="i18n.t('header.history')">
+            <button
+              type="button"
+              class="btn btn-light app-icon-btn"
+              [attr.aria-label]="i18n.t('header.undo')"
+              [ngbTooltip]="i18n.t('header.undo')"
+              [disabled]="!store.canUndo()"
+              (click)="diagram.undo()"
+            >
+              <svg class="app-icon" aria-hidden="true">
+                <use href="icons.svg#arrow-counterclockwise"></use>
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="btn btn-light app-icon-btn"
+              [attr.aria-label]="i18n.t('header.redo')"
+              [ngbTooltip]="i18n.t('header.redo')"
+              [disabled]="!store.canRedo()"
+              (click)="diagram.redo()"
+            >
+              <svg class="app-icon" aria-hidden="true"><use href="icons.svg#arrow-clockwise"></use></svg>
+            </button>
+          </div>
           <button
             type="button"
             class="btn btn-sm btn-primary d-flex align-items-center gap-2"
             [disabled]="persistence.saving()"
-            ngbTooltip="Save now (autosave is on)"
+            [ngbTooltip]="i18n.t('header.saveNow')"
             (click)="persistence.saveNow()"
           >
             @if (persistence.saving()) {
               <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
             }
-            <span>{{ persistence.saving() ? 'Saving…' : 'Save' }}</span>
+            <span>{{ persistence.saving() ? i18n.t('header.saving') : i18n.t('header.save') }}</span>
           </button>
         }
 
@@ -125,24 +151,24 @@ import { DiagramStore } from '../services/diagram-store';
           <button
             type="button"
             class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2"
-            aria-label="Version history"
-            ngbTooltip="Version history"
+            [attr.aria-label]="i18n.t('header.revisions')"
+            [ngbTooltip]="i18n.t('header.revisions')"
             (click)="store.revisionsDialogOpen.set(true)"
           >
             <svg class="app-icon" aria-hidden="true"><use href="icons.svg#window-stack"></use></svg>
-            <span class="d-none d-lg-inline">Revisions</span>
+            <span class="d-none d-lg-inline">{{ i18n.t('header.revisions') }}</span>
           </button>
 
           @if (!store.readOnly()) {
             <button
               type="button"
               class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2"
-              aria-label="Import .archimate file"
-              ngbTooltip="Import .archimate file"
+              [attr.aria-label]="i18n.t('header.import')"
+              [ngbTooltip]="i18n.t('header.import')"
               (click)="upload.click()"
             >
               <svg class="app-icon" aria-hidden="true"><use href="icons.svg#folder2-open"></use></svg>
-              <span class="d-none d-lg-inline">Import</span>
+              <span class="d-none d-lg-inline">{{ i18n.t('header.import') }}</span>
             </button>
 
             <button
@@ -150,19 +176,30 @@ import { DiagramStore } from '../services/diagram-store';
               class="btn btn-sm btn-outline-danger"
               (click)="store.clearDialogOpen.set(true)"
             >
-              Clear
+              {{ i18n.t('header.clear') }}
             </button>
           }
 
           <button
             type="button"
             class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2"
-            aria-label="Export to PNG"
-            ngbTooltip="Export to PNG"
+            [attr.aria-label]="i18n.t('header.exportPng')"
+            [ngbTooltip]="i18n.t('header.exportPng')"
             (click)="diagram.exportImage()"
           >
             <svg class="app-icon" aria-hidden="true"><use href="icons.svg#download"></use></svg>
-            <span class="d-none d-lg-inline">Export</span>
+            <span class="d-none d-lg-inline">{{ i18n.t('header.exportPng') }}</span>
+          </button>
+
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2"
+            [attr.aria-label]="i18n.t('header.exportArchimate')"
+            [ngbTooltip]="i18n.t('header.exportArchimate')"
+            (click)="diagram.exportArchimate()"
+          >
+            <svg class="app-icon" aria-hidden="true"><use href="icons.svg#download"></use></svg>
+            <span class="d-none d-xl-inline">{{ i18n.t('header.exportArchimate') }}</span>
           </button>
 
           <div class="vr"></div>
@@ -172,7 +209,7 @@ import { DiagramStore } from '../services/diagram-store';
             {{ auth.initials() }}
           </span>
           <button type="button" class="btn btn-sm btn-outline-secondary" (click)="auth.signOut()">
-            Sign out
+            {{ i18n.t('header.signOut') }}
           </button>
         </div>
 
@@ -182,28 +219,36 @@ import { DiagramStore } from '../services/diagram-store';
             type="button"
             class="btn btn-sm btn-outline-secondary app-icon-btn"
             ngbDropdownToggle
-            aria-label="More actions"
+            [attr.aria-label]="i18n.t('header.moreActions')"
           >
             <svg class="app-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <circle cx="3" cy="8" r="1.4"></circle>
+              <circle cx="8" cy="3" r="1.4"></circle>
               <circle cx="8" cy="8" r="1.4"></circle>
-              <circle cx="13" cy="8" r="1.4"></circle>
+              <circle cx="8" cy="13" r="1.4"></circle>
             </svg>
           </button>
           <div ngbDropdownMenu class="app-header-menu dropdown-menu-end">
             <button type="button" ngbDropdownItem (click)="store.revisionsDialogOpen.set(true)">
               <svg class="app-icon" aria-hidden="true"><use href="icons.svg#window-stack"></use></svg>
-              <span>Version history</span>
+              <span>{{ i18n.t('header.revisions') }}</span>
             </button>
             @if (!store.readOnly()) {
               <button type="button" ngbDropdownItem (click)="upload.click()">
                 <svg class="app-icon" aria-hidden="true"><use href="icons.svg#folder2-open"></use></svg>
-                <span>Import .archimate file</span>
+                <span>{{ i18n.t('header.import') }}</span>
               </button>
             }
             <button type="button" ngbDropdownItem (click)="diagram.exportImage()">
               <svg class="app-icon" aria-hidden="true"><use href="icons.svg#download"></use></svg>
-              <span>Export to PNG</span>
+              <span>{{ i18n.t('header.exportPng') }}</span>
+            </button>
+            <button type="button" ngbDropdownItem (click)="diagram.exportSvg()">
+              <svg class="app-icon" aria-hidden="true"><use href="icons.svg#download"></use></svg>
+              <span>{{ i18n.t('header.exportSvg') }}</span>
+            </button>
+            <button type="button" ngbDropdownItem (click)="diagram.exportArchimate()">
+              <svg class="app-icon" aria-hidden="true"><use href="icons.svg#download"></use></svg>
+              <span>{{ i18n.t('header.exportArchimate') }}</span>
             </button>
             @if (!store.readOnly()) {
               <div class="dropdown-divider"></div>
@@ -214,7 +259,7 @@ import { DiagramStore } from '../services/diagram-store';
                 (click)="store.clearDialogOpen.set(true)"
               >
                 <svg class="app-icon" aria-hidden="true"><use href="icons.svg#trash3"></use></svg>
-                <span>Clear diagram</span>
+                <span>{{ i18n.t('header.clearDiagram') }}</span>
               </button>
             }
             <div class="dropdown-divider"></div>
@@ -222,7 +267,9 @@ import { DiagramStore } from '../services/diagram-store';
               <span class="app-avatar" aria-hidden="true">{{ auth.initials() }}</span>
               <span class="text-truncate">{{ auth.displayName() }}</span>
             </div>
-            <button type="button" ngbDropdownItem (click)="auth.signOut()">Sign out</button>
+            <button type="button" ngbDropdownItem (click)="auth.signOut()">
+              {{ i18n.t('header.signOut') }}
+            </button>
           </div>
         </div>
       </div>
@@ -232,7 +279,7 @@ import { DiagramStore } from '../services/diagram-store';
         type="file"
         accept=".archimate,.xml"
         class="d-none"
-        aria-label="Import .archimate file"
+        [attr.aria-label]="i18n.t('header.import')"
         (change)="onFileSelected($event)"
       />
     </header>
@@ -243,17 +290,18 @@ export class AppHeader {
   protected readonly diagram = inject(DiagramCanvasService);
   protected readonly persistence = inject(DiagramPersistenceService);
   protected readonly auth = inject(AuthService);
+  protected readonly i18n = inject(TranslationService);
 
   protected readonly saveLabel = computed(() => {
     switch (this.persistence.saveState()) {
       case 'saving':
-        return 'Saving…';
+        return this.i18n.t('header.saving');
       case 'dirty':
-        return 'Unsaved changes';
+        return this.i18n.t('header.dirty');
       case 'error':
-        return 'Save failed';
+        return this.i18n.t('header.saveFailed');
       default:
-        return 'All changes saved';
+        return this.i18n.t('header.saved');
     }
   });
 

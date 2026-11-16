@@ -4,13 +4,15 @@ import { NgbAccordionModule } from '@ng-bootstrap/ng-bootstrap/accordion';
 import { NgbDropdownModule } from '@ng-bootstrap/ng-bootstrap/dropdown';
 import { NgbNavModule } from '@ng-bootstrap/ng-bootstrap/nav';
 import { PALETTE_CATEGORIES, RELATIONSHIP_OPTIONS } from '../models/archimate.models';
-import type { PaletteItem, RelationshipType } from '../models/archimate.models';
+import type { PaletteCategory, PaletteItem, RelationshipType } from '../models/archimate.models';
 import type { AiSettingsPatch } from '../models/ai.models';
-import { TOGAF_DOMAINS, TOGAF_PHASES, findTogafPhase } from '../models/togaf.models';
-import type { TogafDomainId, TogafPhaseId } from '../models/togaf.models';
+import { viewpointAdmits } from '../frameworks/viewpoints';
+import { TOGAF_DOMAINS, TOGAF_PHASES, findTogafPhase } from '../frameworks/togaf';
+import type { TogafDomainId, TogafPhaseId } from '../frameworks/togaf';
 import { AiDiagramService } from '../services/ai-diagram.service';
 import { DiagramCanvasService, type DragPayload } from '../services/diagram-canvas.service';
 import { DiagramStore } from '../services/diagram-store';
+import { TranslationService } from '../services/translation.service';
 
 type PaletteTab = 'elements' | 'ai';
 
@@ -111,13 +113,32 @@ function normalizeApiKey(raw: string | undefined): string {
                   </div>
                 </div>
 
+                @if (store.activeViewpoint(); as viewpoint) {
+                  <div
+                    class="alert alert-secondary d-flex align-items-start gap-2 py-2 px-2 my-2"
+                    role="status"
+                  >
+                    <div class="flex-grow-1 small">
+                      <div class="fw-semibold">{{ viewpoint.name }}</div>
+                      <div class="text-body-secondary">{{ filterSummary() }}</div>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-secondary flex-shrink-0"
+                      (click)="toggleFilter()"
+                    >
+                      {{ filterActive() ? i18n.t('palette.showAll') : i18n.t('palette.applyFilter') }}
+                    </button>
+                  </div>
+                }
+
                 <div
                   ngbAccordion
                   class="app-palette-accordion accordion-flush"
                   [closeOthers]="false"
                   [destroyOnHide]="false"
                 >
-                  @for (category of categories; track category.title; let index = $index) {
+                  @for (category of categories(); track category.title; let index = $index) {
                     <div ngbAccordionItem [collapsed]="index !== 0">
                       <h3 ngbAccordionHeader>
                         <button type="button" ngbAccordionButton class="app-accordion-button">
@@ -402,13 +423,55 @@ export class PaletteSidebar {
   protected readonly store = inject(DiagramStore);
   protected readonly diagram = inject(DiagramCanvasService);
   protected readonly ai = inject(AiDiagramService);
+  protected readonly i18n = inject(TranslationService);
 
   constructor() {
     // Knowing whether a key is stored drives the assistant panel, so fetch it up front.
     this.ai.loadSettings();
   }
 
-  protected readonly categories = PALETTE_CATEGORIES;
+  /** Id of the viewpoint whose filter the user temporarily bypassed. */
+  private readonly filterDisabledFor = signal<string | null>(null);
+
+  protected readonly categories = computed<PaletteCategory[]>(() => {
+    const viewpoint = this.effectiveViewpoint();
+    if (!viewpoint) return PALETTE_CATEGORIES;
+    return PALETTE_CATEGORIES.map((category) => ({
+      ...category,
+      items: category.items.filter((item) =>
+        viewpointAdmits(viewpoint, item.label, item.layer),
+      ),
+    })).filter((category) => category.items.length > 0);
+  });
+
+  /** Viewpoint whose filter is applied, or `null` when the user asked to see everything. */
+  protected readonly effectiveViewpoint = computed(() => {
+    const viewpoint = this.store.activeViewpoint();
+    if (!viewpoint || this.filterDisabledFor() === viewpoint.id) return null;
+    return viewpoint;
+  });
+
+  protected readonly filterActive = computed(() => this.effectiveViewpoint() !== null);
+
+  protected readonly filterSummary = computed(() => {
+    const viewpoint = this.effectiveViewpoint();
+    if (!viewpoint) {
+      return this.store.activeViewpoint()?.concern ?? '';
+    }
+    const shown = this.categories().reduce((total, category) => total + category.items.length, 0);
+    const available = PALETTE_CATEGORIES.reduce((total, category) => total + category.items.length, 0);
+    const showing = this.i18n.t('palette.showing');
+    const of = this.i18n.t('palette.of');
+    const elements = this.i18n.t('palette.elements');
+    return `${showing} ${shown} ${of} ${available} ${elements}`;
+  });
+
+  protected toggleFilter(): void {
+    const viewpoint = this.store.activeViewpoint();
+    if (!viewpoint) return;
+    this.filterDisabledFor.set(this.filterDisabledFor() === viewpoint.id ? null : viewpoint.id);
+  }
+
   protected readonly relationshipOptions = RELATIONSHIP_OPTIONS;
   protected readonly phases = TOGAF_PHASES;
   protected readonly domains = TOGAF_DOMAINS;

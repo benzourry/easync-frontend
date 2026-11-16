@@ -3,8 +3,10 @@ import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AppHeader } from '../components/app-header';
 import { CanvasStage } from '../components/canvas-stage';
+import { CatalogueView } from '../components/catalogue-view';
 import { ClearDialog, EditLabelDialog, NewViewDialog } from '../components/dialogs';
 import { ExplorerSidebar } from '../components/explorer-sidebar';
+import { MatrixView } from '../components/matrix-view';
 import { PaletteSidebar } from '../components/palette-sidebar';
 import { RevisionsDialog } from '../components/revisions-dialog';
 import { DiagramPersistenceService } from '../services/diagram-persistence.service';
@@ -18,6 +20,8 @@ import { DiagramStore } from '../services/diagram-store';
     AppHeader,
     PaletteSidebar,
     CanvasStage,
+    CatalogueView,
+    MatrixView,
     ExplorerSidebar,
     EditLabelDialog,
     ClearDialog,

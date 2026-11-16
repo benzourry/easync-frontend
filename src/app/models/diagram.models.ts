@@ -1,30 +1,49 @@
-import type { Point2D, RelationshipType } from './archimate.models';
+import type { ArchimateLayer, Point2D, RelationshipType } from './archimate.models';
 
-export type SidebarTab = 'explorer' | 'properties';
+export type SidebarTab = 'explorer' | 'properties' | 'problems';
 
 export interface ViewSummary {
   id: string;
   name: string;
+  /** Viewpoint the view answers, from the catalogue in `frameworks/viewpoints.ts`. */
+  viewpoint: string | null;
+  /** What the view holds, so the editor can render a canvas, a table or a grid. */
+  contentType: ViewContentType;
   isActive: boolean;
 }
+
+/** What a view holds: a canvas, a catalogue table or a matrix grid. */
+export type ViewContentType = 'diagram' | 'catalogue' | 'matrix';
 
 export interface ShapeSummary {
   id: string;
   label: string;
   icon: string;
-  layer: string;
+  layer: ArchimateLayer;
   color: string;
   isActive: boolean;
 }
 
 export interface LayerGroup {
-  layer: string;
+  layer: ArchimateLayer;
   shapes: ShapeSummary[];
 }
 
 export interface RepositoryLayer {
-  layer: string;
-  items: { id: string; label: string; icon: string; color: string }[];
+  layer: ArchimateLayer;
+  items: {
+    /** Row identity; for a model element this is its key. */
+    id: string;
+    /** Model element the row stands for; drops reuse it instead of creating another element. */
+    elementKey: string;
+    label: string;
+    icon: string;
+    color: string;
+    /** How many shapes currently draw this element, across every view. */
+    occurrences: number;
+    /** How many views show this element; `0` means it is modelled but not drawn yet. */
+    viewCount: number;
+  }[];
 }
 
 export interface RelationshipSummary {
@@ -53,6 +72,8 @@ export interface SelectionProperties {
   doc: string;
   canCollapse: boolean;
   isCollapsed: boolean;
+  /** Model element the selected shape is an occurrence of; empty when nothing modelled is selected. */
+  elementKey: string;
   availableParentGroups: { id: string; name: string }[];
   availableLinkedViews: { id: string; name: string }[];
 }
@@ -65,7 +86,7 @@ export interface ToastMessage {
 /** Element description accepted by `DiagramCanvasService.createShape`. */
 export interface ShapeSpec {
   label: string;
-  layer?: string;
+  layer?: ArchimateLayer;
   color?: string;
   icon?: string;
   x?: number;
@@ -79,7 +100,7 @@ export interface ShapeSpec {
 export interface DiagramShapeInfo {
   id: string;
   label: string;
-  layer: string;
+  layer: ArchimateLayer;
   icon: string;
   parentId: string | null;
   left: number;
@@ -139,9 +160,11 @@ export interface SnapshotRect {
 /** Plain-data description of one element, used to rebuild the canvas for undo/redo. */
 export interface SnapshotShape {
   id: string;
+  /** Model element this shape shows; absent in snapshots written before the model existed. */
+  elementKey?: string;
   label: string;
   icon: string;
-  layer: string;
+  layer: ArchimateLayer;
   color: string;
   doc: string;
   linkedView: string;

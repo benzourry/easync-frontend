@@ -4,7 +4,9 @@ import { RouterLink } from '@angular/router';
 import { NgbModal, NgbModalModule, type NgbModalRef } from '@ng-bootstrap/ng-bootstrap/modal';
 import { AppTopbar } from '../components/app-topbar';
 import { apiErrorMessage } from '../core/http-error';
+import { DEFAULT_FRAMEWORK_ID, FRAMEWORK_IDS, frameworkProfile } from '../frameworks';
 import type { ProjectRole, ProjectSummary } from '../models/api.models';
+import type { FrameworkId } from '../models/framework.models';
 import { ProjectApiService } from '../services/project-api.service';
 
 const DIALOG_OPTIONS = { size: 'sm', centered: true, backdrop: 'static' as const };
@@ -32,18 +34,26 @@ export class ProjectsPage implements OnInit {
 
   protected readonly createName = signal('');
   protected readonly createDescription = signal('');
+  protected readonly createFramework = signal<FrameworkId>(DEFAULT_FRAMEWORK_ID);
   protected readonly createError = signal<string | null>(null);
   protected readonly createBusy = signal(false);
 
   protected readonly editing = signal<ProjectSummary | null>(null);
   protected readonly editName = signal('');
   protected readonly editDescription = signal('');
+  protected readonly editFramework = signal<FrameworkId>(DEFAULT_FRAMEWORK_ID);
   protected readonly editError = signal<string | null>(null);
   protected readonly editBusy = signal(false);
 
   protected readonly deleting = signal<ProjectSummary | null>(null);
   protected readonly deleteError = signal<string | null>(null);
   protected readonly deleteBusy = signal(false);
+
+  protected readonly frameworkIds = FRAMEWORK_IDS;
+
+  protected frameworkName(id: FrameworkId): string {
+    return frameworkProfile(id).shortName;
+  }
 
   private readonly createTpl = viewChild.required<TemplateRef<unknown>>('createTpl');
   private readonly editTpl = viewChild.required<TemplateRef<unknown>>('editTpl');
@@ -86,6 +96,7 @@ export class ProjectsPage implements OnInit {
   protected openCreate(): void {
     this.createName.set('');
     this.createDescription.set('');
+    this.createFramework.set(DEFAULT_FRAMEWORK_ID);
     this.createError.set(null);
     this.createBusy.set(false);
     this.modal.open(this.createTpl(), { ...DIALOG_OPTIONS, ariaLabelledBy: 'create-project-title' });
@@ -99,6 +110,10 @@ export class ProjectsPage implements OnInit {
     this.createDescription.set((event.target as HTMLInputElement).value);
   }
 
+  protected onCreateFramework(event: Event): void {
+    this.createFramework.set((event.target as HTMLSelectElement).value as FrameworkId);
+  }
+
   protected submitCreate(modal: NgbModalRef): void {
     const name = this.createName().trim();
     if (!name) {
@@ -107,22 +122,29 @@ export class ProjectsPage implements OnInit {
     }
     this.createBusy.set(true);
     this.createError.set(null);
-    this.api.create({ name, description: this.createDescription().trim() || null }).subscribe({
-      next: () => {
-        this.createBusy.set(false);
-        this.refresh(modal);
-      },
-      error: (error: unknown) => {
-        this.createBusy.set(false);
-        this.createError.set(apiErrorMessage(error));
-      },
-    });
+    this.api
+      .create({
+        name,
+        description: this.createDescription().trim() || null,
+        framework: this.createFramework(),
+      })
+      .subscribe({
+        next: () => {
+          this.createBusy.set(false);
+          this.refresh(modal);
+        },
+        error: (error: unknown) => {
+          this.createBusy.set(false);
+          this.createError.set(apiErrorMessage(error));
+        },
+      });
   }
 
   protected openEdit(project: ProjectSummary): void {
     this.editing.set(project);
     this.editName.set(project.name);
     this.editDescription.set(project.description ?? '');
+    this.editFramework.set(project.framework ?? DEFAULT_FRAMEWORK_ID);
     this.editError.set(null);
     this.editBusy.set(false);
     const ref = this.modal.open(this.editTpl(), {
@@ -141,6 +163,10 @@ export class ProjectsPage implements OnInit {
     this.editDescription.set((event.target as HTMLInputElement).value);
   }
 
+  protected onEditFramework(event: Event): void {
+    this.editFramework.set((event.target as HTMLSelectElement).value as FrameworkId);
+  }
+
   protected submitEdit(modal: NgbModalRef): void {
     const project = this.editing();
     if (!project) return;
@@ -152,7 +178,11 @@ export class ProjectsPage implements OnInit {
     this.editBusy.set(true);
     this.editError.set(null);
     this.api
-      .update(project.id, { name, description: this.editDescription().trim() || null })
+      .update(project.id, {
+        name,
+        description: this.editDescription().trim() || null,
+        framework: this.editFramework(),
+      })
       .subscribe({
         next: () => {
           this.editBusy.set(false);

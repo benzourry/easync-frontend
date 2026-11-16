@@ -4,6 +4,7 @@ import {
   normalizeRelationshipType,
   parsePlan,
 } from './ai-plan';
+import { PALETTE_CATEGORIES } from '../models/archimate.models';
 
 describe('ai-plan TOGAF support', () => {
   it('maps TOGAF element vocabulary onto palette entries', () => {
@@ -15,6 +16,27 @@ describe('ai-plan TOGAF support', () => {
     expect(elementStyleFor('Middleware').icon).toBe('Ⓞ');
     expect(elementStyleFor('API').layer).toBe('Application');
     expect(elementStyleFor('Project').layer).toBe('Implementation');
+  });
+
+  it('resolves the full ArchiMate 3.2 element set', () => {
+    expect(elementStyleFor('Business Service').layer).toBe('Business');
+    expect(elementStyleFor('Business Service').icon).toBe('⌓');
+    expect(elementStyleFor('Business Collaboration').icon).toBe('⬣');
+    expect(elementStyleFor('Communication Network').layer).toBe('Tech & Physical');
+    expect(elementStyleFor('Material').layer).toBe('Physical');
+    expect(elementStyleFor('Implementation Event').layer).toBe('Implementation');
+    expect(elementStyleFor('Location').layer).toBe('Generic');
+    expect(elementStyleFor('Principle').icon).toBe('§');
+  });
+
+  it('resolves every palette element back to its own style', () => {
+    for (const category of PALETTE_CATEGORIES) {
+      for (const item of category.items) {
+        const style = elementStyleFor(item.label, item.layer);
+        expect(style.layer, item.label).toBe(item.layer);
+        expect(style.icon, item.label).toBe(item.icon);
+      }
+    }
   });
 
   it('maps TOGAF relationship phrasing onto ArchiMate relationship types', () => {

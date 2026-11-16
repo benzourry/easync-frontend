@@ -7,7 +7,8 @@ declare global {
   }
 }
 
-const DEFAULT_API_BASE_URL = 'http://localhost:8080';
+// const DEFAULT_API_BASE_URL = 'https://rekapi.unimas.my/easync';
+const DEFAULT_API_BASE_URL = 'http://localhost:8080/'; 
 
 function resolveApiBaseUrl(): string {
   const configured = typeof window === 'undefined' ? undefined : window.__EASYNC_CONFIG__?.apiBaseUrl;

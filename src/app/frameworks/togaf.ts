@@ -4,7 +4,17 @@
  * The assistant produces ArchiMate 3.2 models, so every entry here maps TOGAF
  * terminology (phases, artefacts, domains) onto the ArchiMate palette and the
  * kind of diagram that phase is expected to deliver.
+ *
+ * {@link TOGAF_PROFILE} exposes the same data through the framework-profile
+ * contract so the UI can treat TOGAF and MyGovEA interchangeably.
  */
+
+import type { ArchimateLayer } from '../models/archimate.models';
+import type {
+  ArchitecturePrinciple,
+  FrameworkArtifact,
+  FrameworkProfile,
+} from '../models/framework.models';
 
 export type TogafPhaseId =
   | 'preliminary'
@@ -27,7 +37,7 @@ export interface TogafPhase {
   /** Typical TOGAF artefacts produced in this phase. */
   artifacts: string[];
   /** ArchiMate layers this phase normally draws on. */
-  layers: string[];
+  layers: ArchimateLayer[];
   /** Phase-specific modelling instructions for the assistant. */
   guidance: string;
 }
@@ -100,7 +110,7 @@ export const TOGAF_PHASES: TogafPhase[] = [
       'Environments and Locations diagram',
       'Platform Decomposition diagram',
     ],
-    layers: ['Tech & Physical'],
+    layers: ['Tech & Physical', 'Physical'],
     guidance:
       'One Technology Node per environment or platform host, with System Software and Artifacts inside it and Networks between nodes. Technology elements serve applications; they never depend on business elements.',
   },
@@ -115,7 +125,7 @@ export const TOGAF_PHASES: TogafPhase[] = [
       'Work Package definitions',
       'Consolidated Gaps, Solutions and Dependencies',
     ],
-    layers: ['Implementation', 'Application', 'Technology'],
+    layers: ['Implementation', 'Application', 'Tech & Physical'],
     guidance:
       'Represent initiatives as Work Packages that realise the capabilities or services they deliver. Keep the landscape summary-level; this is not a detailed design view.',
   },
@@ -183,7 +193,7 @@ export interface TogafDomain {
   id: TogafDomainId;
   label: string;
   /** ArchiMate layers considered in scope. */
-  layers: string[];
+  layers: ArchimateLayer[];
   guidance: string;
 }
 
@@ -212,14 +222,14 @@ export const TOGAF_DOMAINS: TogafDomain[] = [
   {
     id: 'technology',
     label: 'Technology Architecture',
-    layers: ['Tech & Physical'],
+    layers: ['Tech & Physical', 'Physical'],
     guidance:
       'Technology domain: nodes, devices, system software, networks, artifacts and facilities. Technology serves applications and never depends on business elements.',
   },
   {
     id: 'cross',
     label: 'Cross-domain',
-    layers: ['Motivation', 'Strategy', 'Business', 'Application', 'Tech & Physical'],
+    layers: ['Motivation', 'Strategy', 'Business', 'Application', 'Tech & Physical', 'Physical'],
     guidance:
       'Cross-domain view: keep business, application and technology content in clearly separated bands. The canonical reading order is business on top, application in the middle, technology at the bottom.',
   },
@@ -230,62 +240,177 @@ export function findTogafDomain(id: TogafDomainId): TogafDomain {
 }
 
 /** The eight TOGAF artefacts this assistant knows how to lay out on a canvas. */
-export const TOGAF_ARTIFACT_PLAYBOOK: { artifact: string; phase: TogafPhaseId; recipe: string }[] = [
+export const TOGAF_ARTIFACT_PLAYBOOK: {
+  artifact: string;
+  phase: TogafPhaseId;
+  kind: FrameworkArtifact['kind'];
+  recipe: string;
+}[] = [
   {
     artifact: 'Capability map',
     phase: 'b',
+    kind: 'diagram',
     recipe:
       'Business Capabilities composed into level-1 and level-2 capabilities; one Grouping per level-1 capability when it exceeds four children.',
   },
   {
     artifact: 'Business process / value stream',
     phase: 'b',
+    kind: 'diagram',
     recipe:
       'Value Stream stages as Groupings left to right, the Business Processes realising each stage, and the Business Actors or Roles performing them.',
   },
   {
     artifact: 'Application portfolio and catalog',
     phase: 'c',
+    kind: 'catalogue',
     recipe:
       'Application Components grouped by portfolio segment, with the Application Services they expose and the business capabilities or services they serve.',
   },
   {
     artifact: 'Technology blueprint',
     phase: 'd',
+    kind: 'diagram',
     recipe:
       'Technology Nodes per environment hosting System Software and Artifacts, Networks between nodes, and serving relationships up to the applications hosted.',
   },
   {
     artifact: 'Architecture roadmap and work packages',
     phase: 'f',
+    kind: 'diagram',
     recipe:
       'Plateaus for the transition states, Work Packages between them, and triggering relationships showing execution order.',
   },
   {
     artifact: 'Gap analysis (baseline to target)',
     phase: 'e',
+    kind: 'matrix',
     recipe:
       'Baseline elements on the left, target elements on the right, and a Gap element associated with each element that changes.',
   },
   {
     artifact: 'Stakeholder and viewpoint definition',
     phase: 'a',
+    kind: 'matrix',
     recipe:
       'Stakeholders associated with the Drivers, Goals and Requirements they own, visually separated by Groupings or lanes per stakeholder group.',
   },
   {
     artifact: 'Architecture principles and requirements',
     phase: 'preliminary',
+    kind: 'catalogue',
     recipe:
       'Principles as Requirement or Goal elements with the Driver that motivates each one, and realization links to the elements that comply.',
   },
 ];
 
-/** Fallback governing principles, used when the user has not supplied their own. */
-export const TOGAF_DEFAULT_PRINCIPLES = [
-  'Business-led, technology-enabled: business outcomes drive every technology choice.',
-  'Capability-based planning: increment around business capabilities, not systems.',
-  'Reuse before buy, buy before build.',
-  'Interoperability through published services and interfaces.',
-  'Data is a shared asset governed at enterprise level.',
+/**
+ * Fallback governing principles, used when the user has not supplied their own.
+ * Names are the short title; statements carry the normative wording.
+ */
+export const TOGAF_PRINCIPLES: ArchitecturePrinciple[] = [
+  {
+    id: 'togaf-business-led',
+    category: 'General',
+    name: 'Business-led, technology-enabled',
+    statement: 'Business outcomes drive every technology choice.',
+    rationale: 'Technology exists to serve the business, not the reverse.',
+    implications: ['Every initiative names the business outcome it serves.'],
+  },
+  {
+    id: 'togaf-capability-based',
+    category: 'Business',
+    name: 'Capability-based planning',
+    statement: 'Increment around business capabilities, not around systems.',
+    implications: ['Roadmaps are expressed as capability increments.'],
+  },
+  {
+    id: 'togaf-reuse',
+    category: 'Application',
+    name: 'Reuse before buy, buy before build',
+    statement: 'Prefer existing enterprise assets, then market products, and build last.',
+    implications: ['A build decision must record why reuse and purchase were rejected.'],
+  },
+  {
+    id: 'togaf-interoperability',
+    category: 'Application',
+    name: 'Interoperability through published services',
+    statement: 'Systems integrate through published, versioned services and interfaces.',
+    implications: ['Point-to-point integration requires an exception.'],
+  },
+  {
+    id: 'togaf-data-asset',
+    category: 'Data',
+    name: 'Data is a shared asset',
+    statement: 'Data is governed at enterprise level and owned by an accountable steward.',
+    implications: ['Each data object has one owner and a published definition.'],
+  },
 ];
+
+export const TOGAF_PROFILE: FrameworkProfile = {
+  id: 'togaf',
+  name: 'The Open Group Architecture Framework',
+  shortName: 'TOGAF',
+  mandate: 'TOGAF 10 Architecture Development Method',
+  source: {
+    url: 'https://www.opengroup.org/togaf',
+    verified: false,
+    note: 'Phase, domain and artefact content is the assistant’s modelling guidance, not verbatim TOGAF text.',
+  },
+  defaultLayers: [
+    'Motivation',
+    'Strategy',
+    'Business',
+    'Application',
+    'Tech & Physical',
+    'Physical',
+    'Implementation',
+  ],
+  phases: TOGAF_PHASES,
+  domains: TOGAF_DOMAINS,
+  principles: TOGAF_PRINCIPLES,
+  levels: [
+    {
+      id: 'enterprise',
+      name: 'Enterprise',
+      description: 'Strategic architecture spanning the whole organisation.',
+      deliverables: ['Architecture Vision', 'Target Architecture', 'Architecture Roadmap'],
+    },
+    {
+      id: 'segment',
+      name: 'Segment',
+      description: 'Architecture for one business segment or portfolio.',
+      deliverables: ['Segment Architecture', 'Capability Increments'],
+    },
+    {
+      id: 'capability',
+      name: 'Capability',
+      description: 'Architecture for a single capability increment or solution.',
+      deliverables: ['Solution Concept', 'Capability Increment Definition'],
+    },
+  ],
+  referenceModels: [],
+  roles: [
+    {
+      id: 'chief-architect',
+      name: 'Enterprise Architect',
+      responsibility: 'Owns the architecture method, repository and roadmap.',
+    },
+    {
+      id: 'sponsor',
+      name: 'Architecture Sponsor',
+      responsibility: 'Funds the work and accepts the resulting architecture.',
+    },
+    {
+      id: 'board',
+      name: 'Architecture Board',
+      responsibility: 'Reviews and approves architecture decisions and exceptions.',
+    },
+  ],
+  artifacts: TOGAF_ARTIFACT_PLAYBOOK.map((entry) => ({
+    name: entry.artifact,
+    phase: entry.phase,
+    kind: entry.kind,
+    recipe: entry.recipe,
+  })),
+};
