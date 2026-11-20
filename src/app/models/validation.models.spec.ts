@@ -6,6 +6,8 @@ import {
   allowedRelationshipTypes,
   isKnownPair,
   isRelationshipAllowed,
+  magicConnectionOptions,
+  magicRelationshipType,
   matrixConceptFor,
 } from './relationship-rules';
 import { summarizeIssues, validateModel } from './validation.models';
@@ -65,6 +67,57 @@ describe('relationship matrix', () => {
   it('reports unknown types as no known pair', () => {
     expect(isKnownPair('Business Actor', 'Not A Thing')).toBe(false);
     expect(allowedRelationshipTypes('Not A Thing', 'Business Actor')).toEqual([]);
+  });
+});
+
+describe('Magic Connector', () => {
+  it('uses the only relationship the rules allow between two element types', () => {
+    expect(magicRelationshipType('Business Object', 'Business Process')).toBe('association');
+  });
+
+  it('follows Archi priority order when several relationships are permitted', () => {
+    expect(allowedRelationshipTypes('Technology Node', 'Technology Device')).toContain('composition');
+    expect(magicRelationshipType('Technology Node', 'Technology Device')).toBe('composition');
+    expect(magicRelationshipType('Application Component', 'Application Service')).toBe(
+      'assignment',
+    );
+  });
+
+  it('keeps the plain flow default for element types the matrix does not describe', () => {
+    expect(magicRelationshipType('Not A Thing', 'Business Actor')).toBe('flow');
+    expect(magicRelationshipType(null, undefined)).toBe('flow');
+  });
+
+  it('returns null when ArchiMate relates the two concepts with nothing', () => {
+    expect(magicRelationshipType('Junction', 'Relationship')).toBeNull();
+  });
+
+  it('lists every relationship the rules permit, in Archi preference order', () => {
+    expect(magicConnectionOptions('Business Process', 'Business Actor')).toEqual([
+      { type: 'serving', reverse: false },
+      { type: 'triggering', reverse: false },
+      { type: 'flow', reverse: false },
+      { type: 'association', reverse: false },
+      { type: 'assignment', reverse: true },
+    ]);
+  });
+
+  it('offers relationships only the opposite direction permits as reversed choices', () => {
+    expect(magicConnectionOptions('Business Object', 'Business Process')).toEqual([
+      { type: 'association', reverse: false },
+      { type: 'access', reverse: true },
+    ]);
+  });
+
+  it('describes no choices at all when ArchiMate relates the concepts with nothing', () => {
+    expect(magicConnectionOptions('Junction', 'Relationship')).toEqual([]);
+  });
+
+  it('still offers the plain flow choice for element types the matrix does not describe', () => {
+    expect(magicConnectionOptions('Not A Thing', 'Business Actor')).toEqual([
+      { type: 'flow', reverse: false },
+    ]);
+    expect(magicConnectionOptions(undefined, null)).toEqual([{ type: 'flow', reverse: false }]);
   });
 });
 

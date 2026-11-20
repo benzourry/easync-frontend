@@ -117,6 +117,79 @@ export function isRelationshipAllowed(
 }
 
 /**
+ * Order Archi tries relationship types in when several are permitted, taken from its
+ * `ArchimateModelUtils.getRelationsClasses()` so the Magic Connector agrees with Archi.
+ */
+const PREFERRED_TYPES: readonly RelationshipType[] = [
+  'composition',
+  'aggregation',
+  'assignment',
+  'realization',
+  'serving',
+  'access',
+  'influence',
+  'triggering',
+  'flow',
+  'specialization',
+  'association',
+];
+
+/** Sorts relationship types into Archi's preferred order; unknown types keep their place last. */
+export function orderedRelationshipTypes(
+  types: readonly RelationshipType[],
+): RelationshipType[] {
+  const rank = (type: RelationshipType): number => {
+    const index = PREFERRED_TYPES.indexOf(type);
+    return index === -1 ? PREFERRED_TYPES.length : index;
+  };
+  return [...types].sort((left, right) => rank(left) - rank(right));
+}
+
+/** One relationship the Magic Connector offers, and the direction it runs in. */
+export interface MagicConnectionOption {
+  type: RelationshipType;
+  /** True when the relationship runs from the second shape back to the first. */
+  reverse: boolean;
+}
+
+/**
+ * Every relationship the Magic Connector offers between two element types: the permitted types in
+ * Archi's preferred order, then the ones only the opposite direction permits, so the user can pick
+ * instead of the tool guessing. Types the matrix does not describe keep the plain `flow` default;
+ * an empty list means ArchiMate permits no relationship at all.
+ */
+export function magicConnectionOptions(
+  sourceType: string | null | undefined,
+  targetType: string | null | undefined,
+): MagicConnectionOption[] {
+  if (!matrixConceptFor(sourceType) || !matrixConceptFor(targetType)) {
+    return [{ type: 'flow', reverse: false }];
+  }
+  const forward = orderedRelationshipTypes(allowedRelationshipTypes(sourceType, targetType));
+  const reverse = orderedRelationshipTypes(allowedRelationshipTypes(targetType, sourceType));
+  const options: MagicConnectionOption[] = forward.map((type) => ({ type, reverse: false }));
+  for (const type of reverse) {
+    if (!options.some((option) => option.type === type)) options.push({ type, reverse: true });
+  }
+  return options;
+}
+
+/**
+ * Relationship the Magic Connector draws without asking: the first type the rules permit in the
+ * direction the user drew, in Archi's preferred order. Null means ArchiMate permits nothing in
+ * that direction, so the caller can refuse instead of drawing an invalid relationship.
+ */
+export function magicRelationshipType(
+  sourceType: string | null | undefined,
+  targetType: string | null | undefined,
+): RelationshipType | null {
+  return (
+    magicConnectionOptions(sourceType, targetType).find((option) => !option.reverse)?.type ??
+    null
+  );
+}
+
+/**
  * Junctions must join one relationship type so the model reads as a single branch. Grouping and
  * Location may additionally aggregate or compose anything, including a junction.
  */

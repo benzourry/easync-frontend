@@ -1,5 +1,5 @@
 import { Service, computed, inject, signal } from '@angular/core';
-import type { RelationshipType } from '../models/archimate.models';
+import { MAGIC_CONNECTOR, type ConnectionTypeChoice } from '../models/archimate.models';
 import type {
   FloatingToolbarState,
   LayerGroup,
@@ -109,8 +109,10 @@ export class DiagramStore {
   readonly documentRevision = signal(0);
 
   readonly connectionMode = signal(false);
-  readonly connectionHint = signal('Connection Mode: Select first shape to connect from.');
-  readonly connectionType = signal<RelationshipType>('flow');
+  readonly connectionHint = signal(
+    'Magic connector: select the first shape to connect from.',
+  );
+  readonly connectionType = signal<ConnectionTypeChoice>(MAGIC_CONNECTOR);
   readonly sidebarTab = signal<SidebarTab>('explorer');
   readonly toast = signal<ToastMessage | null>(null);
   readonly toolbar = signal<FloatingToolbarState>({ visible: false, left: 0, top: 0 });

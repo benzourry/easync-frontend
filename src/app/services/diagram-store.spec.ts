@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
+import { MAGIC_CONNECTOR } from '../models/archimate.models';
 import { emptyModelElement, type ModelRelationship } from '../models/model.models';
 import { DiagramStore } from './diagram-store';
 
@@ -174,5 +175,12 @@ describe('DiagramStore viewpoint scoping', () => {
 
     store.setActiveView('view_canvas');
     expect(store.activeContentType()).toBe('diagram');
+  });
+});
+
+describe('DiagramStore connection tool', () => {
+  it('defaults to the Magic Connector', () => {
+    const store = createStore();
+    expect(store.connectionType()).toBe(MAGIC_CONNECTOR);
   });
 });

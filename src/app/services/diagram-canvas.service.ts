@@ -1,5 +1,11 @@
-import { Service, effect, inject } from '@angular/core';
-import { compareLayers, getArchimateTypeInfo, layerOf } from '../models/archimate.models';
+import { Service, effect, inject, signal } from '@angular/core';
+import {
+  MAGIC_CONNECTOR,
+  RELATIONSHIP_OPTIONS,
+  compareLayers,
+  getArchimateTypeInfo,
+  layerOf,
+} from '../models/archimate.models';
 import type {
   ArchimateLayer,
   PaletteItem,
@@ -39,6 +45,8 @@ import {
   relationshipKey,
 } from '../models/model.models';
 import type { ModelElement, ModelRelationship } from '../models/model.models';
+import { magicConnectionOptions, magicRelationshipType } from '../models/relationship-rules';
+import type { MagicConnectionOption } from '../models/relationship-rules';
 import { HistoryStack } from '../utils/history-stack';
 import { ArchimateImportService } from './archimate-import.service';
 import { buildArchimateExchange, type ExchangeView } from './archimate-export.service';
@@ -70,6 +78,17 @@ const GROUP_SHAPE_ICONS = ['⊞', '📁'];
 const CONNECT_MODE_HINT = 'Connection Mode: Select first shape to connect from.';
 const CONNECT_TARGET_HINT = 'Connection Mode: Select target shape to complete connection.';
 const CONNECT_DONE_HINT = 'Connection created. Select another shape to start a new connection.';
+const MAGIC_MODE_HINT = 'Magic connector: select the first shape to connect from.';
+const MAGIC_TARGET_HINT =
+  'Magic connector: select the target shape, then pick the relationship the rules allow.';
+const MAGIC_CHOOSE_HINT = 'Magic connector: pick the relationship this connection uses.';
+const CONNECT_FORBIDDEN_HINT =
+  'ArchiMate allows no relationship between these element types.';
+/** Box the Magic connector menu is kept inside, in CSS pixels. */
+const MAGIC_MENU_WIDTH = 224;
+const MAGIC_MENU_ROW = 32;
+const MAGIC_MENU_CHROME = 44;
+const MAGIC_MENU_MARGIN = 8;
 /** Space between the floating toolbar and the object it belongs to. */
 const TOOLBAR_GAP = 10;
 /** Distance from the object's top edge to the toolbar's own top edge. */
@@ -152,6 +171,23 @@ type ObjectInteraction = Pick<
   'selectable' | 'evented' | 'hoverCursor' | 'lockMovementX' | 'lockMovementY' | 'hasControls'
 >;
 
+/** One entry of the Magic connector menu: a relationship the rules allow, and its direction. */
+export interface MagicConnectionChoice {
+  type: RelationshipType;
+  label: string;
+  /** True when the relationship runs from the second shape back to the first. */
+  reverse: boolean;
+  /** Element names the relationship would join, so the direction reads unambiguously. */
+  direction: string;
+}
+
+/** Open Magic connector menu: what the user may pick, and where it floats on the canvas. */
+export interface MagicConnectionMenu {
+  left: number;
+  top: number;
+  choices: MagicConnectionChoice[];
+}
+
 /** Owns the Fabric.js canvas: rendering, interaction, persistence and inspector state. */
 @Service()
 export class DiagramCanvasService {
@@ -186,6 +222,10 @@ export class DiagramCanvasService {
   private restoringHistory = false;
 
   private connectionSource: ArchimateShape | null = null;
+  /** Pair awaiting a relationship choice while the Magic connector menu is open. */
+  private magicPending: { source: ArchimateShape; target: ArchimateShape } | null = null;
+  /** Relationship menu the Magic connector shows; drives the popup in the canvas template. */
+  readonly magicMenu = signal<MagicConnectionMenu | null>(null);
   private isPanning = false;
   private isSpaceDown = false;
   private isShiftDragging = false;
@@ -255,6 +295,7 @@ export class DiagramCanvasService {
   detach(): void {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
+    this.closeMagicMenu();
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     this.unbindTouch();
@@ -807,7 +848,9 @@ export class DiagramCanvasService {
     const canvas = this.canvas;
     if (!canvas || source === target) return null;
 
-    const type = forceType ?? this.store.connectionType();
+    const type = forceType ?? this.resolveConnectionType(source, target);
+    if (!type) return null;
+
     const isDark = this.theme.isDark();
     const lineColor = isDark ? '#94a3b8' : '#334155';
     const dashed = DASHED_TYPES.includes(type);
@@ -860,6 +903,30 @@ export class DiagramCanvasService {
     this.connections.push(connection);
     this.updateAllConnections();
     return connection;
+  }
+
+  /**
+   * Relationship type for a new connection: the chosen type, or — with the Magic Connector, the
+   * default — whatever the ArchiMate rules permit between the two element types. Null means the
+   * rules allow nothing, so no connection is drawn.
+   */
+  private resolveConnectionType(
+    source: ArchimateShape,
+    target: ArchimateShape,
+  ): RelationshipType | null {
+    const choice = this.store.connectionType();
+    if (choice !== MAGIC_CONNECTOR) return choice;
+    return magicRelationshipType(this.archimateTypeOf(source), this.archimateTypeOf(target));
+  }
+
+  /** ArchiMate type of the model element a shape renders, falling back to its label. */
+  private archimateTypeOf(shape: ArchimateShape): string {
+    const element = this.store.elementFor(shape.archimateElementKey ?? shape.archimateId);
+    return element?.archimateType ?? this.labelOf(shape);
+  }
+
+  private relationshipLabel(type: RelationshipType): string {
+    return RELATIONSHIP_OPTIONS.find((option) => option.value === type)?.label ?? type;
   }
 
   private createSourceDecoration(
@@ -1287,7 +1354,7 @@ export class DiagramCanvasService {
 
     if (this.store.connectionMode()) {
       const sourceCandidate = opt.target as ArchimateShape | undefined;
-      if (sourceCandidate?.isShape) this.handleConnectionClick(sourceCandidate);
+      if (sourceCandidate?.isShape) this.handleConnectionClick(sourceCandidate, event);
       return;
     }
 
@@ -1363,9 +1430,8 @@ export class DiagramCanvasService {
 
     const target = canvas.findTarget(opt.e as MouseEvent, false) as ArchimateShape | undefined;
     if (source && target?.isShape && target !== source) {
-      this.createConnection(source, target);
-      this.refreshTree();
-      this.commitHistory();
+      const event = opt.e as MouseEvent;
+      this.connectShapes(source, target, event.clientX, event.clientY);
     }
     this.updateToolbar();
     canvas.requestRenderAll();
@@ -1698,6 +1764,8 @@ export class DiagramCanvasService {
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') {
+      // The relationship menu answers the first Escape; the connection tool the next one.
+      if (this.dismissMagicMenu()) return;
       if (this.store.connectionMode()) this.toggleConnectionMode();
       this.store.editDialogValue.set(null);
       this.store.clearDialogOpen.set(false);
@@ -2640,6 +2708,7 @@ export class DiagramCanvasService {
     if (!canvas) return;
 
     this.connectionSource = null;
+    this.closeMagicMenu();
     canvas.discardActiveObject();
     canvas.selection = !enabled;
     const stroke = this.theme.isDark() ? '#475569' : '#94a3b8';
@@ -2657,12 +2726,12 @@ export class DiagramCanvasService {
       }
     }
 
-    this.store.connectionHint.set(CONNECT_MODE_HINT);
+    this.store.connectionHint.set(this.isMagicConnector() ? MAGIC_MODE_HINT : CONNECT_MODE_HINT);
     canvas.requestRenderAll();
     this.syncSelection();
   }
 
-  private handleConnectionClick(shape: ArchimateShape): void {
+  private handleConnectionClick(shape: ArchimateShape, event: MouseEvent): void {
     const canvas = this.canvas;
     if (!canvas) return;
 
@@ -2674,7 +2743,9 @@ export class DiagramCanvasService {
         | fabric.Rect
         | undefined;
       rect?.set('stroke', '#3b82f6');
-      this.store.connectionHint.set(CONNECT_TARGET_HINT);
+      this.store.connectionHint.set(
+        this.isMagicConnector() ? MAGIC_TARGET_HINT : CONNECT_TARGET_HINT,
+      );
       canvas.requestRenderAll();
       return;
     }
@@ -2689,12 +2760,168 @@ export class DiagramCanvasService {
       | undefined;
     sourceRect?.set('stroke', defaultStroke);
 
-    this.createConnection(source, shape);
-    this.store.connectionHint.set(CONNECT_DONE_HINT);
-    this.store.showToast('Connection created.');
-    this.refreshTree();
+    this.connectShapes(source, shape, event.clientX, event.clientY);
     canvas.requestRenderAll();
+  }
+
+  /**
+   * Connects two shapes with the active tool. The Magic connector asks which relationship to use
+   * whenever the rules permit more than one, so the choice stays with the user like in Archi.
+   */
+  private connectShapes(
+    source: ArchimateShape,
+    target: ArchimateShape,
+    clientX: number,
+    clientY: number,
+  ): void {
+    if (!this.isMagicConnector()) {
+      const connection = this.createConnection(source, target);
+      if (connection) this.completeConnection(connection);
+      else this.store.showToast(CONNECT_FORBIDDEN_HINT, true);
+      return;
+    }
+
+    const options = magicConnectionOptions(
+      this.archimateTypeOf(source),
+      this.archimateTypeOf(target),
+    );
+    if (options.length === 0) {
+      this.store.connectionHint.set(MAGIC_TARGET_HINT);
+      this.store.showToast(CONNECT_FORBIDDEN_HINT, true);
+      return;
+    }
+
+    if (options.length === 1) {
+      const [option] = options;
+      const connection = this.createConnection(
+        option.reverse ? target : source,
+        option.reverse ? source : target,
+        option.type,
+      );
+      if (connection) this.completeConnection(connection);
+      else this.store.showToast(CONNECT_FORBIDDEN_HINT, true);
+      return;
+    }
+
+    this.openMagicMenu(source, target, options, clientX, clientY);
+  }
+
+  /** Opens the relationship menu the user picks from, replacing any menu already showing. */
+  private openMagicMenu(
+    source: ArchimateShape,
+    target: ArchimateShape,
+    options: readonly MagicConnectionOption[],
+    clientX: number,
+    clientY: number,
+  ): void {
+    this.magicPending = { source, target };
+    const sourceName = this.labelOf(source);
+    const targetName = this.labelOf(target);
+    this.magicMenu.set({
+      ...this.magicMenuPosition(clientX, clientY, options.length),
+      choices: options.map((option) => ({
+        type: option.type,
+        label: this.relationshipLabel(option.type),
+        reverse: option.reverse,
+        direction: option.reverse ? `${targetName} → ${sourceName}` : `${sourceName} → ${targetName}`,
+      })),
+    });
+    this.store.connectionHint.set(MAGIC_CHOOSE_HINT);
+    this.canvas?.requestRenderAll();
+  }
+
+  /** Keeps the menu inside the canvas, opening it beside the pointer when there is room. */
+  private magicMenuPosition(
+    clientX: number,
+    clientY: number,
+    optionCount: number,
+  ): { left: number; top: number } {
+    const host = this.host;
+    if (!host) return { left: MAGIC_MENU_MARGIN, top: MAGIC_MENU_MARGIN };
+    const bounds = host.getBoundingClientRect();
+    const height = MAGIC_MENU_CHROME + optionCount * MAGIC_MENU_ROW;
+    const left = Math.max(
+      MAGIC_MENU_MARGIN,
+      Math.min(
+        clientX - bounds.left + MAGIC_MENU_MARGIN,
+        bounds.width - MAGIC_MENU_WIDTH - MAGIC_MENU_MARGIN,
+      ),
+    );
+    const top = Math.max(
+      MAGIC_MENU_MARGIN,
+      Math.min(
+        clientY - bounds.top + MAGIC_MENU_MARGIN,
+        bounds.height - height - MAGIC_MENU_MARGIN,
+      ),
+    );
+    return { left, top };
+  }
+
+  /** Draws the relationship the user picked in the Magic connector menu. */
+  chooseMagicConnection(type: RelationshipType, reverse: boolean): void {
+    const pending = this.magicPending;
+    this.closeMagicMenu();
+    if (!pending || this.readOnly) return;
+
+    const connection = this.createConnection(
+      reverse ? pending.target : pending.source,
+      reverse ? pending.source : pending.target,
+      type,
+    );
+    if (!connection) {
+      this.store.showToast(CONNECT_FORBIDDEN_HINT, true);
+      return;
+    }
+    this.completeConnection(connection);
+  }
+
+  /** Closes the Magic connector menu without drawing; true when a menu was open. */
+  dismissMagicMenu(): boolean {
+    if (!this.magicPending) return false;
+    this.closeMagicMenu();
+    this.refreshConnectionHint();
+    return true;
+  }
+
+  private closeMagicMenu(): void {
+    this.magicPending = null;
+    if (this.magicMenu()) this.magicMenu.set(null);
+  }
+
+  /** Shared finish of a user-drawn connection: wording, tree refresh, render and undo step. */
+  private completeConnection(connection: DiagramConnection): void {
+    this.store.connectionHint.set(CONNECT_DONE_HINT);
+    this.store.showToast(
+      this.isMagicConnector()
+        ? `Connection created as ${this.relationshipLabel(connection.type)}.`
+        : 'Connection created.',
+    );
+    this.refreshTree();
+    this.canvas?.requestRenderAll();
     this.commitHistory();
+  }
+
+  /** True while the connection tool is the Magic Connector, which derives the type from rules. */
+  private isMagicConnector(): boolean {
+    return this.store.connectionType() === MAGIC_CONNECTOR;
+  }
+
+  /** Re-reads the connection-tool wording, e.g. after the palette changed the type. */
+  refreshConnectionHint(): void {
+    if (!this.store.connectionMode()) return;
+    if (this.magicPending) {
+      this.store.connectionHint.set(MAGIC_CHOOSE_HINT);
+      return;
+    }
+    const magic = this.isMagicConnector();
+    const hint = this.connectionSource
+      ? magic
+        ? MAGIC_TARGET_HINT
+        : CONNECT_TARGET_HINT
+      : magic
+        ? MAGIC_MODE_HINT
+        : CONNECT_MODE_HINT;
+    this.store.connectionHint.set(hint);
   }
 
   // --- Collapse / expand ---------------------------------------------------
@@ -3055,6 +3282,7 @@ export class DiagramCanvasService {
     this.saveCurrentViewState();
     this.clearBendpoints();
     this.connectionSource = null;
+    this.closeMagicMenu();
     if (this.store.connectionMode()) {
       this.store.exitConnectionMode();
       this.applyConnectionMode(false);

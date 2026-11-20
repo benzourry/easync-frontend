@@ -197,6 +197,14 @@ export interface ActiveSelectionProps {
   availableLinkedViews: { id: string; name: string }[];
 }
 
+/**
+ * What the connection tool draws: one fixed relationship type, or the Magic Connector, which
+ * follows the ArchiMate rules for the two element types instead of a hand-picked type.
+ */
+export const MAGIC_CONNECTOR = 'magic';
+
+export type ConnectionTypeChoice = RelationshipType | typeof MAGIC_CONNECTOR;
+
 export const RELATIONSHIP_OPTIONS: { value: RelationshipType; label: string }[] = [
   { value: 'flow', label: 'Flow' },
   { value: 'association', label: 'Association' },
@@ -209,6 +217,23 @@ export const RELATIONSHIP_OPTIONS: { value: RelationshipType; label: string }[] 
   { value: 'composition', label: 'Composition' },
   { value: 'aggregation', label: 'Aggregation' },
   { value: 'assignment', label: 'Assignment' },
+];
+
+/**
+ * Connection tool choices, Magic Connector first because it is the default: it only ever draws a
+ * relationship the ArchiMate rules permit between the two element types.
+ */
+export const CONNECTION_TYPE_OPTIONS: {
+  value: ConnectionTypeChoice;
+  label: string;
+  description?: string;
+}[] = [
+  {
+    value: MAGIC_CONNECTOR,
+    label: 'Magic',
+    description: 'Suggests the relationships the ArchiMate rules allow and lets you pick one',
+  },
+  ...RELATIONSHIP_OPTIONS,
 ];
 
 /**

@@ -7,6 +7,7 @@ declare global {
   }
 }
 
+// const DEFAULT_API_BASE_URL = 'https://io.leap.my/easync';
 const DEFAULT_API_BASE_URL = 'https://rekapi.unimas.my/easync';
 // const DEFAULT_API_BASE_URL = 'http://localhost:8080/'; 
 

@@ -1,4 +1,12 @@
-﻿import { Component, DestroyRef, ElementRef, afterNextRender, inject, viewChild } from '@angular/core';
+﻿import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  afterNextRender,
+  effect,
+  inject,
+  viewChild,
+} from '@angular/core';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { DiagramCanvasService, type DragPayload } from '../services/diagram-canvas.service';
 import { DiagramStore } from '../services/diagram-store';
@@ -32,6 +40,32 @@ import { clientPointFromEvent } from '../utils/drag-point';
           role="status"
         >
           {{ store.connectionHint() }}
+        </div>
+      }
+
+      @if (diagram.magicMenu(); as menu) {
+        <div class="app-canvas-backdrop" (click)="diagram.dismissMagicMenu()"></div>
+        <div
+          #magicMenu
+          class="app-magic-menu position-absolute bg-body border rounded-3 shadow p-1 z-3"
+          role="menu"
+          aria-label="Relationships this connection may use"
+          [style.left.px]="menu.left"
+          [style.top.px]="menu.top"
+        >
+          <div class="dropdown-item-text px-2 py-1" role="presentation">Connect using</div>
+          @for (choice of menu.choices; track choice.type + (choice.reverse ? '-reverse' : '')) {
+            <button
+              type="button"
+              class="dropdown-item rounded-2 d-flex align-items-center gap-2"
+              role="menuitem"
+              [title]="choice.direction"
+              (click)="diagram.chooseMagicConnection(choice.type, choice.reverse)"
+            >
+              <span class="app-magic-arrow" aria-hidden="true">{{ choice.reverse ? '←' : '→' }}</span>
+              <span class="flex-grow-1 text-start">{{ choice.label }}</span>
+            </button>
+          }
         </div>
       }
 
@@ -100,6 +134,24 @@ import { clientPointFromEvent } from '../utils/drag-point';
       min-width: 0;
       position: relative;
     }
+
+    .app-canvas-backdrop {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+    }
+
+    .app-magic-menu {
+      min-width: 14rem;
+      max-width: 18rem;
+      font-size: 0.8125rem;
+    }
+
+    .app-magic-arrow {
+      width: 1rem;
+      text-align: center;
+      color: var(--app-muted);
+    }
   `,
 })
 export class CanvasStage {
@@ -108,12 +160,20 @@ export class CanvasStage {
 
   private readonly hostRef = viewChild.required<ElementRef<HTMLElement>>('host');
   private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
+  private readonly magicMenuRef = viewChild<ElementRef<HTMLElement>>('magicMenu');
 
   constructor() {
     afterNextRender(() =>
       this.diagram.attach(this.hostRef().nativeElement, this.canvasRef().nativeElement),
     );
     inject(DestroyRef).onDestroy(() => this.diagram.detach());
+
+    // A menu that opens under the pointer must take keyboard focus, so it can be tabbed and
+    // dismissed with Escape like any other menu.
+    effect(() => {
+      if (!this.diagram.magicMenu()) return;
+      queueMicrotask(() => this.magicMenuRef()?.nativeElement.querySelector('button')?.focus());
+    });
   }
 
   protected onDrop(event: CdkDragDrop<DragPayload>): void {

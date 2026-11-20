@@ -3,8 +3,12 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { NgbAccordionModule } from '@ng-bootstrap/ng-bootstrap/accordion';
 import { NgbDropdownModule } from '@ng-bootstrap/ng-bootstrap/dropdown';
 import { NgbNavModule } from '@ng-bootstrap/ng-bootstrap/nav';
-import { PALETTE_CATEGORIES, RELATIONSHIP_OPTIONS } from '../models/archimate.models';
-import type { PaletteCategory, PaletteItem, RelationshipType } from '../models/archimate.models';
+import { CONNECTION_TYPE_OPTIONS, PALETTE_CATEGORIES } from '../models/archimate.models';
+import type {
+  ConnectionTypeChoice,
+  PaletteCategory,
+  PaletteItem,
+} from '../models/archimate.models';
 import type { AiSettingsPatch } from '../models/ai.models';
 import { viewpointAdmits } from '../frameworks/viewpoints';
 import { TOGAF_DOMAINS, TOGAF_PHASES, findTogafPhase } from '../frameworks/togaf';
@@ -87,19 +91,20 @@ function normalizeApiKey(raw: string | undefined): string {
                     type="button"
                     [class]="typeToggleClass()"
                     ngbDropdownToggle
-                    [attr.aria-label]="'Relationship type: ' + typeLabel() + '. Change type'"
-                    [title]="'Relationship type: ' + typeLabel()"
+                    [attr.aria-label]="'Connection type: ' + typeLabel() + '. Change type'"
+                    [title]="typeTitle()"
                   >
                     {{ typeLabel() }}
                   </button>
                   <div class="app-relationship-menu" ngbDropdownMenu role="menu">
-                    @for (option of relationshipOptions; track option.value) {
+                    @for (option of connectionTypeOptions; track option.value) {
                       <button
                         type="button"
                         ngbDropdownItem
                         role="menuitemradio"
                         [attr.aria-checked]="option.value === store.connectionType()"
                         [class.active]="option.value === store.connectionType()"
+                        [title]="option.description ?? ''"
                         (click)="selectType(option.value)"
                       >
                         <span class="flex-grow-1 text-start">{{ option.label }}</span>
@@ -472,7 +477,7 @@ export class PaletteSidebar {
     this.filterDisabledFor.set(this.filterDisabledFor() === viewpoint.id ? null : viewpoint.id);
   }
 
-  protected readonly relationshipOptions = RELATIONSHIP_OPTIONS;
+  protected readonly connectionTypeOptions = CONNECTION_TYPE_OPTIONS;
   protected readonly phases = TOGAF_PHASES;
   protected readonly domains = TOGAF_DOMAINS;
 
@@ -491,9 +496,19 @@ export class PaletteSidebar {
 
   protected readonly typeLabel = computed(
     () =>
-      this.relationshipOptions.find((option) => option.value === this.store.connectionType())
-        ?.label ?? 'Relationship',
+      this.connectionTypeOptions.find((option) => option.value === this.store.connectionType())
+        ?.label ?? 'Connection',
   );
+
+  protected readonly typeTitle = computed(() => {
+    const option = this.connectionTypeOptions.find(
+      (candidate) => candidate.value === this.store.connectionType(),
+    );
+    const label = option?.label ?? 'Connection';
+    return option?.description
+      ? `Connection type: ${label} — ${option.description}`
+      : `Connection type: ${label}`;
+  });
 
   protected readonly connectClass = computed(
     () =>
@@ -524,8 +539,9 @@ export class PaletteSidebar {
       : `${base} border-secondary-subtle text-dark`;
   }
 
-  protected selectType(type: RelationshipType): void {
+  protected selectType(type: ConnectionTypeChoice): void {
     this.store.connectionType.set(type);
+    this.diagram.refreshConnectionHint();
   }
 
   protected onItemClick(item: PaletteItem): void {
